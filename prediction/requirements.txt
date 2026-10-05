@@ -1,0 +1,12 @@
+# TabPFN hike-time prediction service
+tabpfn
+pandas
+numpy
+scikit-learn
+gpxpy
+
+# HTTP service
+fastapi
+uvicorn[standard]
+requests
+python-dotenv
