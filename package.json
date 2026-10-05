@@ -1,0 +1,15 @@
+{
+  "name": "turnaround",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source hiking companion: predicts your hike time, tells you when to turn back, and alerts someone you trust if you don't check in.",
+  "license": "MIT",
+  "workspaces": [
+    "app",
+    "agent",
+    "workflows"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
