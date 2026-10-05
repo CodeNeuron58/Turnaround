@@ -27,6 +27,9 @@ data/processed/
 *.log
 npm-debug.log*
 
+# Personal notes — local only, never committed
+todolist.md
+
 # OS / editor
 .DS_Store
 Thumbs.db

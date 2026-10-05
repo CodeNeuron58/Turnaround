@@ -27,7 +27,7 @@ It runs on a server you control, your location data never leaves your infrastruc
 
 ## Status
 
-🚧 Work in progress — see [todolist.md](todolist.md) for the build checklist.
+🚧 Work in progress.
 
 ## License
 
