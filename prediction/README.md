@@ -29,4 +29,5 @@ python prediction/evaluate.py
 - On CPU, datasets above 1,000 samples require `TABPFN_ALLOW_CPU_LARGE_DATASET=1`;
   `evaluate.py` sets this itself.
 
-The service runs on the same DigitalOcean GPU Droplet as Gemma 4.
+The service runs on the same machine as Gemma 4 (Ollama) — one box, and nothing
+about a hiker's route or location ever leaves it.

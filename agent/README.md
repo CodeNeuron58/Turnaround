@@ -8,5 +8,5 @@ OpenAI-compatible endpoint with `fetch`, and has four abilities:
 3. Call the TabPFN prediction service
 4. Calculate the turn-back time
 
-Gemma 4 — running locally on the DigitalOcean GPU Droplet — turns the numbers into a
+Gemma 4 — running locally via Ollama on the same machine — turns the numbers into a
 plain-language briefing ("advice from a friend, not a report"), and Piper renders it as speech.

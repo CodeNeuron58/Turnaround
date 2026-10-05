@@ -23,7 +23,7 @@ Built for the [Hacktoberfest Open-Source AI Challenge: Week 1](https://dev.to/ch
 
 ## Why open source
 
-It runs on a server you control, your location data never leaves your infrastructure, and every model and service in the stack is swappable.
+It runs on your own machine — no server, no subscription — so your location data never leaves it, and every model in the stack is swappable.
 
 ## Status
 
