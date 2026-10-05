@@ -11,15 +11,16 @@
   "target": "duration_min",
   "seed": 42,
   "mae_min": {
-    "tabpfn": 35.46332879123408,
+    "tabpfn": 34.83913863946394,
     "naismith": 44.142758385351264
   },
   "rmse_min": {
-    "tabpfn": 56.22037573279911,
+    "tabpfn": 54.491480638435604,
     "naismith": 69.07588883993691
   },
-  "coverage_p05_p95_pct": 87.89986091794158,
-  "finished_before_p90_pct": 89.70792767732962,
-  "band_width_mean_min": 139.71243211443843,
-  "tabpfn_fit_predict_seconds": 254.9
+  "coverage_p05_p95_pct": 89.49930458970793,
+  "finished_before_p90_pct": 90.40333796940195,
+  "band_width_mean_min": 150.89742404045478,
+  "tabpfn_fit_predict_seconds": 802.6,
+  "model": "Prior-Labs/tabpfn_3_5 (tabpfn-v3.5-20260909.safetensors)"
 }

@@ -94,6 +94,7 @@ def main() -> None:
         "features": FEATURES,
         "target": TARGET,
         "seed": SEED,
+        "model": os.environ.get("TABPFN_MODEL_PATH", "auto (package default)"),
         "mae_min": {"tabpfn": mae(y_te, p50), "naismith": mae(y_te, nai)},
         "rmse_min": {"tabpfn": rmse(y_te, p50), "naismith": rmse(y_te, nai)},
         "coverage_p05_p95_pct": float(np.mean((y_te >= p05) & (y_te <= p95)) * 100),
