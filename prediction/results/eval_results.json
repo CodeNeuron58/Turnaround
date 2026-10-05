@@ -1,0 +1,25 @@
+{
+  "n_train": 5748,
+  "n_test": 1438,
+  "features": [
+    "distance_km",
+    "climb_m",
+    "descent_m",
+    "highest_m",
+    "t_grade"
+  ],
+  "target": "duration_min",
+  "seed": 42,
+  "mae_min": {
+    "tabpfn": 35.46332879123408,
+    "naismith": 44.142758385351264
+  },
+  "rmse_min": {
+    "tabpfn": 56.22037573279911,
+    "naismith": 69.07588883993691
+  },
+  "coverage_p05_p95_pct": 87.89986091794158,
+  "finished_before_p90_pct": 89.70792767732962,
+  "band_width_mean_min": 139.71243211443843,
+  "tabpfn_fit_predict_seconds": 254.9
+}

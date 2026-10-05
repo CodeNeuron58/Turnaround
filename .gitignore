@@ -21,6 +21,7 @@ venv/
 # Local data — datasets and personal routes stay out of git
 data/raw/
 data/processed/
+data/models/
 *.gpx
 
 # Logs
