@@ -30,6 +30,7 @@ npm-debug.log*
 
 # Personal notes — local only, never committed
 todolist.md
+cleanup.md
 
 # OS / editor
 .DS_Store
