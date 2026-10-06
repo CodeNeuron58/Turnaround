@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "plan": "tsx src/cli.ts"
+  },
   "devDependencies": {
     "@types/node": "^26.6.4",
     "tsx": "^4.23.15",
