@@ -1,4 +1,4 @@
-# Normalize line endings — edited on Windows, deployed to a Linux Droplet
+# Normalize line endings — edited on Windows, must stay consumable on any Linux host
 * text=auto eol=lf
 
 # Windows-only scripts keep CRLF

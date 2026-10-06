@@ -8,9 +8,9 @@ cautious window the app calculated for them.
   Hiker:            Your friend
   Route:            Test ridge loop (grade T3)
   Distance:         4.46 km, 161 m of climbing, high point 1400 m
-  Started:          7 Oct 2026, 00:16
-  Expected back:    7 Oct 2026, 01:36 (typical estimate)
-  Should be back by:7 Oct 2026, 01:57 (cautious estimate)
+  Started:          7 Oct 2026, 04:56
+  Expected back:    7 Oct 2026, 06:17 (typical estimate)
+  Should be back by:7 Oct 2026, 06:38 (cautious estimate)
   Overdue by:       0 min past the alert deadline
 
 If you can reach them, a phone call may be all it takes. If not, consider

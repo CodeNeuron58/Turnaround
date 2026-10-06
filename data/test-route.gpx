@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="turnaround-test" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Test ridge loop</name>
+    <trkseg>
+      <trkpt lat="27.7100" lon="85.3100"><ele>1200</ele></trkpt>
+      <trkpt lat="27.7150" lon="85.3150"><ele>1280</ele></trkpt>
+      <trkpt lat="27.7200" lon="85.3200"><ele>1350</ele></trkpt>
+      <trkpt lat="27.7250" lon="85.3250"><ele>1400</ele></trkpt>
+      <trkpt lat="27.7300" lon="85.3300"><ele>1320</ele></trkpt>
+      <trkpt lat="27.7350" lon="85.3350"><ele>1250</ele></trkpt>
+      <trkpt lat="27.7400" lon="85.3400"><ele>1210</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

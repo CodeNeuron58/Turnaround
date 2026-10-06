@@ -24,9 +24,11 @@ data/processed/
 data/models/
 data/*.db
 agent/output/
+workflows/outbox/
 tools/*
 !tools/README.md
 *.gpx
+!data/test-route.gpx
 
 # Logs
 *.log

@@ -16,12 +16,20 @@ curl -4L "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/
 curl -4L "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json" -o piper/voice/en_US-amy-medium.onnx.json
 ```
 
+## Temporal server (safety timer)
+
+```bash
+curl -4L https://github.com/temporalio/cli/releases/download/v1.9.1/temporal_cli_1.9.1_windows_amd64.zip -o temporal-cli.zip
+unzip temporal-cli.zip -d temporal
+temporal/temporal.exe server start-dev --port 7233
+```
+
 ## The briefing pipeline (proven working, Oct 6)
 
 1. **Gemma 4** (Ollama, `gemma4:e4b`) turns trip facts into a spoken-style briefing.
    **Use the HTTP API, not the CLI** — `ollama run` hangs on this network (tries to
-   phone home over IPv6). The agent uses `POST http://127.0.0.1:11434/api/generate`
-   with `"stream": false`.
+   phone home over IPv6). The agent calls `POST {GEMMA_BASE_URL}/chat/completions`
+   with `"stream": false` (OpenAI-compatible endpoint).
 2. **Piper** turns the text into audio:
 
 ```bash
@@ -30,5 +38,5 @@ piper-bin/piper/piper.exe -m piper/voice/en_US-amy-medium.onnx -f briefing.wav <
 
 Real-time factor ≈ 0.17 — a 30-second briefing synthesizes in ~5 s.
 
-Samples kept here for reference: `briefing.txt` / `briefing.wav` (Gemma's actual
-output for the 12.6 km T3 test trip).
+First-run outputs from this pipeline are committed under `docs/evidence/`.
+

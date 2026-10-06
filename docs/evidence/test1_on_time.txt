@@ -1,16 +1,16 @@
 Progress:
   ID           Time                     Type           
-    1  2026-10-06T18:34:47Z  WorkflowExecutionStarted  
-    2  2026-10-06T18:34:47Z  WorkflowTaskScheduled     
-    3  2026-10-06T18:34:47Z  WorkflowTaskStarted       
-    4  2026-10-06T18:34:47Z  WorkflowTaskCompleted     
-    5  2026-10-06T18:34:47Z  TimerStarted              
-    6  2026-10-06T18:35:21Z  WorkflowExecutionSignaled 
-    7  2026-10-06T18:35:21Z  WorkflowTaskScheduled     
-    8  2026-10-06T18:35:21Z  WorkflowTaskStarted       
-    9  2026-10-06T18:35:21Z  WorkflowTaskCompleted     
-   10  2026-10-06T18:35:21Z  TimerCanceled             
-   11  2026-10-06T18:35:21Z  WorkflowExecutionCompleted
+    1  2026-10-06T23:18:58Z  WorkflowExecutionStarted  
+    2  2026-10-06T23:18:58Z  WorkflowTaskScheduled     
+    3  2026-10-06T23:18:59Z  WorkflowTaskStarted       
+    4  2026-10-06T23:19:00Z  WorkflowTaskCompleted     
+    5  2026-10-06T23:19:00Z  TimerStarted              
+    6  2026-10-06T23:19:10Z  WorkflowExecutionSignaled 
+    7  2026-10-06T23:19:10Z  WorkflowTaskScheduled     
+    8  2026-10-06T23:19:10Z  WorkflowTaskStarted       
+    9  2026-10-06T23:19:10Z  WorkflowTaskCompleted     
+   10  2026-10-06T23:19:10Z  TimerCanceled             
+   11  2026-10-06T23:19:10Z  WorkflowExecutionCompleted
 
 Results:
   Status          COMPLETED
