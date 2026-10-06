@@ -16,8 +16,10 @@ just refitting with the new row included.
 
 from __future__ import annotations
 
+import math
 import os
 import pathlib
+import re
 import sqlite3
 import threading
 import time
@@ -30,7 +32,8 @@ import numpy as np
 import pandas as pd
 import gpxpy
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, field_validator
 from tabpfn import TabPFNRegressor
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -49,7 +52,13 @@ N_ESTIMATORS = int(os.environ.get("TABPFN_N_ESTIMATORS", "6"))
 
 _predict_lock = threading.Lock()
 _fit_lock = threading.Lock()
+_fit_needed = threading.Event()
 _state: dict = {"reg": None, "model": "", "training_rows": 0, "personal_rows": 0}
+
+# Plausibility bounds — mirrors build_dataset.py so the model only sees the
+# distribution it was trained on, and a fat-fingered checkout can't poison it.
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+CONTROL_CHARS = re.compile(r"[\r\n\x00-\x1f]")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trips(
@@ -73,10 +82,17 @@ CREATE TABLE IF NOT EXISTS personal_hikes(
 
 def db() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
+
+
+def init_schema() -> None:
+    with closing(db()) as conn:
+        conn.executescript(SCHEMA)
+        conn.commit()
 
 
 def now_iso() -> str:
@@ -103,49 +119,84 @@ def training_frame() -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
 
 
 def fit_model() -> None:
-    if not _fit_lock.acquire(blocking=False):
-        return  # a refit is already running
-    try:
-        t0 = time.time()
-        model_path = os.environ.get("TABPFN_MODEL_PATH")
-        if not model_path:
-            if not DEFAULT_CKPT.exists():
-                raise RuntimeError(
-                    f"No TabPFN checkpoint at {DEFAULT_CKPT} and TABPFN_MODEL_PATH is unset"
-                )
-            model_path = str(DEFAULT_CKPT)
-        Xh, yh, Xp, yp = training_frame()
-        # every personal hike stays in context; top up with a random hikr sample
-        take = max(0, CONTEXT_ROWS - len(Xp))
-        if take < len(Xh):
-            Xh = Xh.sample(n=take, random_state=SEED)
-            yh = yh.loc[Xh.index]
-        X = pd.concat([Xh, Xp], ignore_index=True)
-        y = pd.concat([yh, yp], ignore_index=True)
-        reg = TabPFNRegressor(
-            model_path=model_path, random_state=SEED, n_estimators=N_ESTIMATORS,
-        )
-        reg.fit(X, y)
-        _state.update(reg=reg, model=pathlib.Path(model_path).name, training_rows=len(X))
-        print(f"[turnaround] fitted on {len(X)} hikes in {time.time() - t0:.0f}s", flush=True)
-    finally:
-        _fit_lock.release()
+    """(Re)fit the serving model. Runs either at startup or in a background
+    thread after a checkout. The _fit_needed flag catches checkouts that land
+    while a fit is in flight, so the newest personal hike is never skipped."""
+    while True:
+        if not _fit_lock.acquire(blocking=False):
+            return  # a fit is already running; it will loop and pick up our rows
+        try:
+            _fit_needed.clear()
+            t0 = time.time()
+            model_path = os.environ.get("TABPFN_MODEL_PATH")
+            if not model_path:
+                if not DEFAULT_CKPT.exists():
+                    raise RuntimeError(
+                        f"No TabPFN checkpoint at {DEFAULT_CKPT} and TABPFN_MODEL_PATH is unset"
+                    )
+                model_path = str(DEFAULT_CKPT)
+            Xh, yh, Xp, yp = training_frame()
+            # every personal hike stays in context; top up with a random hikr sample
+            take = max(0, CONTEXT_ROWS - len(Xp))
+            if take < len(Xh):
+                Xh = Xh.sample(n=take, random_state=SEED)
+                yh = yh.loc[Xh.index]
+            X = pd.concat([Xh, Xp], ignore_index=True)
+            y = pd.concat([yh, yp], ignore_index=True)
+            reg = TabPFNRegressor(
+                model_path=model_path, random_state=SEED, n_estimators=N_ESTIMATORS,
+            )
+            reg.fit(X, y)
+            _state.update(reg=reg, model=pathlib.Path(model_path).name, training_rows=len(X))
+            print(f"[turnaround] fitted on {len(X)} hikes in {time.time() - t0:.0f}s", flush=True)
+        except Exception as e:  # never kill the server from a background refit
+            print(f"[turnaround] fit FAILED — serving previous model, if any: {e}", flush=True)
+            return
+        finally:
+            _fit_lock.release()
+        if not _fit_needed.is_set():
+            return
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    fit_model()
+    init_schema()
+    try:
+        fit_model()
+    except Exception as e:  # serve 503s rather than refusing to boot
+        print(f"[turnaround] startup fit failed: {e}", flush=True)
+    try:
+        # first real predict pays torch's lazy init (~90s cold); pay it here so
+        # the first request is fast
+        t0 = time.time()
+        predict_quantiles({
+            "distance_km": 12.6, "climb_m": 1005.0, "descent_m": 950.0,
+            "highest_m": 1999.0, "t_grade": 3,
+        })
+        print(f"[turnaround] warm-up predict done in {time.time() - t0:.0f}s", flush=True)
+    except Exception as e:
+        print(f"[turnaround] warm-up skipped: {e}", flush=True)
     yield
 
 
 app = FastAPI(title="Turnaround prediction service", lifespan=lifespan)
+# the React app (Friday) runs on a different port in dev — without this every
+# browser fetch dies as an opaque network error
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class Features(BaseModel):
-    distance_km: float = Field(gt=0, description="route length in km")
-    climb_m: float = Field(ge=0)
-    descent_m: float = Field(ge=0)
-    highest_m: float = Field(ge=0)
+    # plausibility bounds mirror build_dataset.py — the model never saw anything
+    # outside this range, and out-of-range garbage degrades predictions for everyone
+    distance_km: float = Field(gt=0, le=50, description="route length in km")
+    climb_m: float = Field(ge=0, le=4500)
+    descent_m: float = Field(ge=0, le=8000)
+    highest_m: float = Field(ge=0, le=5500)
     t_grade: int = Field(ge=1, le=6, description="SAC scale T1-T6")
 
 
@@ -156,12 +207,19 @@ def predict_quantiles(features: dict) -> dict:
     X = pd.DataFrame([features])[FEATURES]
     with _predict_lock:
         q = np.asarray(reg.predict(X, output_type="quantiles", quantiles=QUANTILES))
+    if q.shape == (len(QUANTILES),):
+        q = q.reshape(1, -1)
     if q.shape != (1, len(QUANTILES)):
         if q.shape == (len(QUANTILES), 1):
             q = q.T
         else:
-            raise ValueError(f"unexpected quantile shape {q.shape}")
-    p05, p50, p90, p95 = (float(max(v, 1.0)) for v in q[0])
+            raise HTTPException(502, f"model returned unexpected quantile shape {q.shape}")
+    q = np.clip(q, 1.0, None)
+    if not np.isfinite(q).all():
+        # TabPFN can emit NaN for far-out features; a bare NaN serializes as
+        # invalid JSON and would poison the client
+        raise HTTPException(502, "model returned non-finite estimates — features likely outside the training range")
+    p05, p50, p90, p95 = (float(v) for v in q[0])
     return {"p5_min": p05, "expected_min": p50, "p90_min": p90, "p95_min": p95}
 
 
@@ -186,6 +244,8 @@ async def analyze_route(request: Request, t_grade: int | None = None) -> dict:
     """Analyze an uploaded GPX route (send the file as the raw request body).
     Returns the exact feature dict /predict and /trips expect. The SAC grade
     can't be derived from a track alone — the Plan screen asks the hiker for it."""
+    if int(request.headers.get("content-length", "0") or 0) > 10_000_000:
+        raise HTTPException(413, "GPX too large (10 MB cap)")
     raw = await request.body()
     try:
         gpx = gpxpy.parse(raw.decode("utf-8", errors="replace"))
@@ -199,6 +259,8 @@ async def analyze_route(request: Request, t_grade: int | None = None) -> dict:
     bounds = None
     with suppress(Exception):
         bounds = gpx.get_bounds()
+    if length_m <= 0 or bounds is None:
+        raise HTTPException(422, "GPX contains no trackpoints")
     lat = lon = None
     if bounds is not None:
         lat = round((bounds.min_latitude + bounds.max_latitude) / 2, 5)
@@ -217,8 +279,26 @@ async def analyze_route(request: Request, t_grade: int | None = None) -> dict:
 
 
 class TripCreate(Features):
-    name: str
+    name: str = Field(min_length=1, max_length=120)
     contact_email: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _no_control_chars(cls, v: str) -> str:
+        # name and email flow into escalation emails later; a newline would
+        # smuggle headers the moment nodemailer replaces the outbox
+        if CONTROL_CHARS.search(v):
+            raise ValueError("name contains control characters")
+        return v.strip()
+
+    @field_validator("contact_email")
+    @classmethod
+    def _valid_email(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if CONTROL_CHARS.search(v) or not EMAIL_RE.match(v):
+            raise ValueError("contact_email is not a valid address")
+        return v
 
 
 @app.post("/trips", status_code=201)
@@ -244,29 +324,37 @@ def start_trip(trip_id: int) -> dict:
             "UPDATE trips SET status='active', started_at=? WHERE id=? AND status='planned'",
             (now_iso(), trip_id),
         )
-        conn.commit()
         if cur.rowcount == 0:
-            raise HTTPException(404, "trip not found or already started")
+            row = conn.execute("SELECT status FROM trips WHERE id=?", (trip_id,)).fetchone()
+            if row is None:
+                raise HTTPException(404, "trip not found")
+            raise HTTPException(409, f"trip is {row['status']}, only planned trips can start")
+        conn.commit()
         row = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
     return dict(row)
 
 
 class Checkout(BaseModel):
-    actual_min: float = Field(gt=0, description="recorded moving time in minutes")
+    actual_min: float = Field(gt=0, le=1500, description="recorded moving time in minutes (25 h cap — a garbage value would poison every future prediction)")
 
 
 @app.post("/trips/{trip_id}/checkout")
 def checkout(trip_id: int, c: Checkout) -> dict:
     with closing(db()) as conn:
-        trip = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
-        if trip is None:
-            raise HTTPException(404, "trip not found")
-        if trip["status"] == "done":
-            raise HTTPException(409, "trip already checked out")
-        conn.execute(
-            "UPDATE trips SET status='done', finished_at=?, actual_min=? WHERE id=?",
-            (now_iso(), c.actual_min, trip_id),
+        # conditional transition: a double-clicked button can't double-insert
+        # the hike into the training set, and the whole thing stays atomic
+        now = now_iso()
+        cur = conn.execute(
+            "UPDATE trips SET status='done', finished_at=?, actual_min=?,"
+            " started_at=COALESCE(started_at, ?) WHERE id=? AND status<>'done'",
+            (now, c.actual_min, now, trip_id),
         )
+        if cur.rowcount == 0:
+            exists = conn.execute("SELECT 1 FROM trips WHERE id=?", (trip_id,)).fetchone()
+            if exists is None:
+                raise HTTPException(404, "trip not found")
+            raise HTTPException(409, "trip already checked out")
+        trip = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
         conn.execute(
             "INSERT INTO personal_hikes(distance_km, climb_m, descent_m, highest_m,"
             " t_grade, duration_min, created_at) VALUES(?,?,?,?,?,?,?)",
@@ -277,6 +365,7 @@ def checkout(trip_id: int, c: Checkout) -> dict:
         row = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
     # the checked-in hike is now a training row — refit in the background so the
     # next prediction is a little more personal
+    _fit_needed.set()
     threading.Thread(target=fit_model, daemon=True).start()
     return dict(row)
 
