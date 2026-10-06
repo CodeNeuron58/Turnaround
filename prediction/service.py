@@ -196,6 +196,13 @@ async def analyze_route(request: Request, t_grade: int | None = None) -> dict:
     with suppress(Exception):
         up, down = gpx.get_uphill_downhill()
     extremes = gpx.get_elevation_extremes()
+    bounds = None
+    with suppress(Exception):
+        bounds = gpx.get_bounds()
+    lat = lon = None
+    if bounds is not None:
+        lat = round((bounds.min_latitude + bounds.max_latitude) / 2, 5)
+        lon = round((bounds.min_longitude + bounds.max_longitude) / 2, 5)
     if t_grade is not None and not 1 <= t_grade <= 6:
         raise HTTPException(422, "t_grade must be 1-6")
     return {
@@ -204,6 +211,8 @@ async def analyze_route(request: Request, t_grade: int | None = None) -> dict:
         "descent_m": round(down or 0.0, 1),
         "highest_m": round(extremes.maximum or 0.0, 1),
         "t_grade": t_grade,
+        "lat": lat,
+        "lon": lon,
     }
 
 
