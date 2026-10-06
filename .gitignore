@@ -23,6 +23,8 @@ data/raw/
 data/processed/
 data/models/
 data/*.db
+tools/*
+!tools/README.md
 *.gpx
 
 # Logs
