@@ -28,7 +28,8 @@ os.environ.setdefault("TABPFN_ALLOW_CPU_LARGE_DATASET", "1")
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+import gpxpy
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 from tabpfn import TabPFNRegressor
 
@@ -178,6 +179,32 @@ def health() -> dict:
 @app.post("/predict")
 def predict(f: Features) -> dict:
     return predict_quantiles(f.model_dump())
+
+
+@app.post("/route/analyze")
+async def analyze_route(request: Request, t_grade: int | None = None) -> dict:
+    """Analyze an uploaded GPX route (send the file as the raw request body).
+    Returns the exact feature dict /predict and /trips expect. The SAC grade
+    can't be derived from a track alone — the Plan screen asks the hiker for it."""
+    raw = await request.body()
+    try:
+        gpx = gpxpy.parse(raw.decode("utf-8", errors="replace"))
+    except Exception as e:
+        raise HTTPException(400, f"could not parse GPX: {e}")
+    length_m = gpx.length_2d() or 0
+    up = down = 0.0
+    with suppress(Exception):
+        up, down = gpx.get_uphill_downhill()
+    extremes = gpx.get_elevation_extremes()
+    if t_grade is not None and not 1 <= t_grade <= 6:
+        raise HTTPException(422, "t_grade must be 1-6")
+    return {
+        "distance_km": round(length_m / 1000, 3),
+        "climb_m": round(up or 0.0, 1),
+        "descent_m": round(down or 0.0, 1),
+        "highest_m": round(extremes.maximum or 0.0, 1),
+        "t_grade": t_grade,
+    }
 
 
 class TripCreate(Features):
