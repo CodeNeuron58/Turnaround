@@ -4,10 +4,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { activityInfo } from "@temporalio/activity";
 import type { TripDetails } from "./workflows";
 
 // anchored to this file, not the worker's cwd
 const OUTBOX_DIR = process.env.OUTBOX_DIR ?? fileURLToPath(new URL("../outbox", import.meta.url));
+
+// per-workflow failure budget for the retry test — process-global counters
+// would race between concurrent escalations
+const failBudget = new Map<string, number>();
 
 function fmtLocal(iso: string): string {
   const d = new Date(iso);
@@ -47,15 +52,22 @@ function renderEmail(trip: TripDetails): string {
  *
  *  Simulated flakiness for the retry test: set FAIL_FIRST_N=2 in the worker's
  *  environment and the first N attempts throw before succeeding. */
-export async function escalateEmail(trip: TripDetails): Promise<{ delivered: string; attemptNote?: string }> {
+export async function escalateEmail(trip: TripDetails): Promise<{ delivered: string }> {
+  const workflowId = activityInfo().workflowExecution?.workflowId ?? `trip-${trip.tripId}`;
+
   const failFirstN = Number(process.env.FAIL_FIRST_N ?? 0);
   if (failFirstN > 0) {
-    process.env.FAIL_FIRST_N = String(failFirstN - 1);
-    throw new Error(`simulated smtp outage (${failFirstN} more failure(s) queued)`);
+    const remaining = failBudget.get(workflowId) ?? failFirstN;
+    if (remaining > 0) {
+      failBudget.set(workflowId, remaining - 1);
+      throw new Error(`simulated smtp outage (${remaining} more failure(s) queued)`);
+    }
   }
 
   mkdirSync(OUTBOX_DIR, { recursive: true });
-  const file = path.join(OUTBOX_DIR, `escalation-trip${trip.tripId}-${Date.now()}.txt`);
+  // the filename comes from the execution, not the clock: a redelivered
+  // activity attempt overwrites the same file instead of duplicating the alert
+  const file = path.join(OUTBOX_DIR, `escalation-${workflowId}.txt`);
   writeFileSync(file, renderEmail(trip), "utf-8");
   return { delivered: `outbox:${file}` };
 }

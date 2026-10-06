@@ -6,7 +6,8 @@
   "scripts": {
     "worker": "tsx src/worker.ts",
     "start": "tsx src/cli.ts start",
-    "checkin": "tsx src/cli.ts checkin"
+    "checkin": "tsx src/cli.ts checkin",
+    "typecheck": "tsc -p ."
   },
   "dependencies": {
     "@temporalio/client": "^1.24.0",
