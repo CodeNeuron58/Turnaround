@@ -1,24 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Plan from "./screens/Plan";
 import Trail from "./screens/Trail";
 import Out from "./screens/Out";
-import type { Prediction, Sunset, Trip } from "./api";
-import type { Features } from "./api";
+import { api, HttpError, type CheckinResult, type Trip } from "./api";
+import { saved, type PendingCheckin, type SavedPlan } from "./store";
 
 type View = "plan" | "trail" | "out";
 
-export interface RouteInfo extends Features {
-  lat: number | null;
-  lon: number | null;
-}
-
-export interface PlanData {
-  route: RouteInfo;
-  prediction: Prediction;
-  sunset: Sunset;
-  startIso: string;
-  file: File;
-  trip: Trip;
+/** The plan the trail and summary screens run on. The GPX File only exists in
+ *  the session that uploaded it — a restored trip has everything else. */
+export interface PlanData extends SavedPlan {
+  file?: File;
 }
 
 function viewFromHash(): View {
@@ -26,6 +18,8 @@ function viewFromHash(): View {
   if (location.hash === "#out") return "out";
   return "plan";
 }
+
+const strip = ({ route, prediction, sunset, trip }: PlanData): SavedPlan => ({ route, prediction, sunset, trip });
 
 const logo = (
   <svg width="30" height="22" viewBox="0 0 30 22" fill="none" aria-hidden="true">
@@ -35,25 +29,123 @@ const logo = (
 );
 
 export default function App() {
-  const [view, setView] = useState<View>(viewFromHash);
-  const [plan, setPlan] = useState<PlanData | null>(null);
-  const [result, setResult] = useState<Trip | null>(null);
+  // a trip in progress always wins: a refreshed or discarded tab lands back on
+  // the trail screen, ready to check in
+  const [view, setView] = useState<View>(() => (saved.active() ? "trail" : viewFromHash()));
+  const [plan, setPlan] = useState<PlanData | null>(() => saved.active() ?? saved.result()?.plan ?? null);
+  const [result, setResult] = useState<CheckinResult | null>(() => (saved.active() ? null : saved.result()?.result ?? null));
+  const [pending, setPending] = useState<PendingCheckin | null>(() => saved.pending());
+  const [checkinError, setCheckinError] = useState<string | null>(null);
+  const planRef = useRef(plan);
+  planRef.current = plan;
+  const flushing = useRef(false);
+
+  const go = useCallback((v: View) => {
+    if (location.hash !== `#${v}`) location.hash = v;
+    setView(v);
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
+    if (location.hash !== `#${view}`) history.replaceState(null, "", `#${view}`);
     const onHash = () => setView(viewFromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const go = (v: View) => {
-    location.hash = v;
-    setView(v);
-    window.scrollTo(0, 0);
+  const updateTrip = useCallback((t: Trip) => {
+    setPlan((p) => {
+      if (!p || p.trip.id !== t.id) return p;
+      const next = { ...p, trip: t };
+      saved.setActive(strip(next));
+      return next;
+    });
+  }, []);
+
+  // a restored trip: refresh it from the service when there's signal; without
+  // signal the saved copy is the plan
+  useEffect(() => {
+    const a = saved.active();
+    if (!a) return;
+    api
+      .getTrip(a.trip.id)
+      .then((t) => {
+        if (t.status === "active") updateTrip(t);
+        else if (!saved.pending()) {
+          // finished from another device, or this trip no longer exists here
+          saved.setActive(null);
+          setPlan(null);
+          go("plan");
+        }
+      })
+      .catch((e) => {
+        if (e instanceof HttpError && e.status === 404 && !saved.pending()) {
+          saved.setActive(null);
+          setPlan(null);
+          go("plan");
+        }
+      });
+  }, [go, updateTrip]);
+
+  const finish = useCallback(
+    (res: CheckinResult) => {
+      const p = planRef.current;
+      if (p) saved.setResult({ plan: { ...strip(p), trip: res }, result: res });
+      saved.setActive(null);
+      setResult(res);
+      go("out");
+    },
+    [go],
+  );
+
+  /** Send a check-in tapped earlier. Network trouble (no signal, laptop out of
+   *  reach, service restarting) keeps it queued; only a refusal from the
+   *  service drops it. Repeats are safe — the service's checkout is idempotent. */
+  const flush = useCallback(async () => {
+    const p = saved.pending();
+    if (!p || flushing.current) return;
+    flushing.current = true;
+    try {
+      const res = await api.checkout(p.tripId, p.actualMin);
+      saved.setPending(null);
+      setPending(null);
+      setCheckinError(null);
+      finish(res);
+    } catch (e) {
+      if (e instanceof HttpError && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) {
+        saved.setPending(null);
+        setPending(null);
+        setCheckinError(`The service refused the check-in: ${e.message}`);
+      }
+    } finally {
+      flushing.current = false;
+    }
+  }, [finish]);
+
+  useEffect(() => {
+    if (!pending) return;
+    void flush();
+    const t = setInterval(() => void flush(), 15_000);
+    const onOnline = () => void flush();
+    window.addEventListener("online", onOnline);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [pending, flush]);
+
+  const checkIn = (actualMin: number) => {
+    if (!plan) return;
+    const p = { tripId: plan.trip.id, actualMin, tappedAt: Date.now() };
+    saved.setPending(p);
+    setPending(p);
+    setCheckinError(null);
   };
 
   const steps: Array<{ id: View; num: string; label: string; enabled: boolean }> = [
     { id: "plan", num: "01", label: "Plan", enabled: true },
-    { id: "trail", num: "02", label: "On trail", enabled: !!plan },
+    { id: "trail", num: "02", label: "On trail", enabled: !!plan && !result },
     { id: "out", num: "03", label: "Summary", enabled: !!result },
   ];
 
@@ -88,6 +180,9 @@ export default function App() {
         {view === "plan" && (
           <Plan
             onPlanned={(d) => {
+              saved.setActive(strip(d));
+              saved.setResult(null);
+              setResult(null);
               setPlan(d);
               go("trail");
             }}
@@ -95,13 +190,14 @@ export default function App() {
         )}
 
         {view === "trail" &&
-          (plan ? (
+          (plan && !result ? (
             <Trail
               plan={plan}
-              onOut={(t) => {
-                setResult(t);
-                go("out");
-              }}
+              pending={pending?.tripId === plan.trip.id ? pending : null}
+              checkinError={checkinError}
+              onCheckIn={checkIn}
+              onRetryNow={() => void flush()}
+              onTripUpdate={updateTrip}
             />
           ) : (
             <EmptyCard onGo={() => go("plan")} />
@@ -109,7 +205,16 @@ export default function App() {
 
         {view === "out" &&
           (plan && result ? (
-            <Out plan={plan} trip={result} onAgain={() => go("plan")} />
+            <Out
+              plan={plan}
+              result={result}
+              onAgain={() => {
+                saved.setResult(null);
+                setResult(null);
+                setPlan(null);
+                go("plan");
+              }}
+            />
           ) : (
             <EmptyCard onGo={() => go("plan")} />
           ))}

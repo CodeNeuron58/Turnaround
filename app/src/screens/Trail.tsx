@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type Prediction, type Trip } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { after, api } from "../api";
+import { prepareBriefing } from "../briefing";
 import { fmtClock, fmtHM, fmtTimeOfDay } from "../format";
+import { saved, type PendingCheckin } from "../store";
 import type { PlanData } from "../App";
+import type { Trip } from "../api";
 
 const RING_C = 2 * Math.PI * 126; // circumference of the r=126 ring
 
@@ -11,35 +14,45 @@ const COLORS = {
   red: "#B54A3B",
 };
 
+const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 export default function Trail({
   plan,
-  onOut,
+  pending,
+  checkinError,
+  onCheckIn,
+  onRetryNow,
+  onTripUpdate,
 }: {
   plan: PlanData;
-  onOut: (t: Trip) => void;
+  pending: PendingCheckin | null;
+  checkinError: string | null;
+  onCheckIn: (actualMin: number) => void;
+  onRetryNow: () => void;
+  onTripUpdate: (t: Trip) => void;
 }) {
-  const { trip, prediction, route, sunset } = plan;
-  const totalMs = trip.p90_min * 60_000;
-  const backByMs = useMemo(
-    () => new Date(trip.started_at ?? Date.now()).getTime() + totalMs,
-    [trip.started_at, totalMs],
-  );
+  const { trip, prediction, sunset } = plan;
+  const startIso = trip.started_at ?? new Date().toISOString();
+  const startMs = Date.parse(startIso);
+  const at = (iso: string | undefined, min: number) => (iso ? Date.parse(iso) : after(startIso, min));
+  const turnAt = at(trip.turn_around_at, trip.turn_around_after_min);
+  const backAt = at(trip.back_by_at, trip.back_by_after_min);
+  const alertAt = at(trip.alert_at, trip.alert_after_min);
+  const armed = trip.timer_status === "armed";
 
   const [now, setNow] = useState(Date.now());
   const [online, setOnline] = useState(navigator.onLine);
-  const [briefing, setBriefing] = useState<string | null>(null);
+  const [briefing, setBriefing] = useState<string | null>(() => saved.briefing(trip.id) ?? trip.briefing);
   const [briefingErr, setBriefingErr] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioState, setAudioState] = useState<"preparing" | "ready" | "failed">("preparing");
+  const [briefingTry, setBriefingTry] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [audioSec, setAudioSec] = useState(0);
   const [audioDur, setAudioDur] = useState(0);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [arming, setArming] = useState(false);
+  const [armError, setArmError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const cacheKey = `turnaround-trail-${trip.id}`;
-  const elapsedSec = Math.max(0, (now - new Date(trip.started_at ?? now).getTime()) / 1000);
-  const remainingSec = (backByMs - now) / 1000;
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -53,41 +66,35 @@ export default function Trail({
     };
   }, []);
 
-  // briefing: live from the service, cached copy when the trail has no signal
+  // the briefing was prepared on the Plan screen; this picks up the same
+  // promise or the copy saved on the phone, and retries if neither exists
   useEffect(() => {
-    const cached = localStorage.getItem(cacheKey);
-    (async () => {
-      try {
-        const b = await api.briefing(trip.id);
-        setBriefing(b.briefing);
-        localStorage.setItem(cacheKey, JSON.stringify({ briefing: b.briefing }));
-      } catch (e) {
-        if (cached) {
-          setBriefing(JSON.parse(cached).briefing ?? null);
-          setBriefingErr(null);
+    let live = true;
+    let url: string | null = null;
+    setAudioState("preparing");
+    prepareBriefing(trip.id)
+      .then((b) => {
+        if (!live) return;
+        setBriefing(b.text);
+        setBriefingErr(null);
+        if (b.audio) {
+          url = URL.createObjectURL(b.audio);
+          setAudioUrl(url);
+          setAudioState("ready");
         } else {
-          setBriefingErr(String(e instanceof Error ? e.message : e));
+          setAudioState("failed");
         }
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip.id]);
-
-  async function makeAudio() {
-    setBusy("rendering…");
-    setError(null);
-    try {
-      const res = await api.briefingAudio(trip.id);
-      if (!res.ok) throw new Error(`${res.status} ${await res.text().then((t) => t.slice(0, 120))}`);
-      const blob = await res.blob();
-      setAudioUrl(URL.createObjectURL(blob));
-    } catch (e) {
-      // keep the button — the hiker can retry (e.g. text wasn't generated yet)
-      setError(String(e instanceof Error ? e.message : e));
-    } finally {
-      setBusy(null);
-    }
-  }
+      })
+      .catch((e) => {
+        if (!live) return;
+        setBriefingErr(msg(e));
+        setAudioState("failed");
+      });
+    return () => {
+      live = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [trip.id, briefingTry]);
 
   function togglePlay() {
     const a = audioRef.current;
@@ -96,40 +103,57 @@ export default function Trail({
     else void a.play().catch(() => setPlaying(false));
   }
 
-  async function imOut() {
-    setBusy("checking in…");
-    setError(null);
+  async function retryArm() {
+    setArming(true);
+    setArmError(null);
     try {
-      const t = await api.checkout(trip.id, Math.max(1, Math.round(elapsedSec / 60)));
-      onOut(t);
+      onTripUpdate(await api.armTrip(trip.id));
     } catch (e) {
-      setBusy(null);
-      setError(String(e instanceof Error ? e.message : e));
+      setArmError(msg(e));
+    } finally {
+      setArming(false);
     }
   }
 
-  // ring state
-  const overdue = remainingSec <= 0;
-  const urgent = !overdue && remainingSec <= 15 * 60;
-  const frac = Math.max(0, Math.min(1, remainingSec / (totalMs / 1000)));
-  const heroColor = overdue ? COLORS.red : urgent ? COLORS.amber : COLORS.green;
-  const statusLabel = overdue ? "Overdue — turn back now" : urgent ? "Under 15 minutes" : "You're on track";
-  const countCaption = overdue ? "past turn-back time" : "until turn-back time";
-  const deltaMin = Math.round(elapsedSec / 60 - prediction.expected_min);
+  const elapsedSec = Math.max(0, (now - startMs) / 1000);
 
-  const audioMM = fmtClock(audioSec);
-  const audioTotal = audioDur ? fmtClock(audioDur) : "--:--";
+  // where the hike is: heading out → heading back → overdue → contact alerted
+  let phase: { color: string; label: string; target: number; from: number; caption: string; pulse: boolean };
+  if (now < turnAt) {
+    const urgent = turnAt - now <= 15 * 60_000;
+    phase = {
+      color: urgent ? COLORS.amber : COLORS.green,
+      label: urgent ? "Under 15 minutes to turn around" : "You're on track",
+      target: turnAt,
+      from: startMs,
+      caption: "until turn-around time",
+      pulse: urgent,
+    };
+  } else if (now < backAt) {
+    phase = { color: COLORS.amber, label: "Past turn-around — head back", target: backAt, from: turnAt, caption: "until your back-by time", pulse: false };
+  } else if (armed && now < alertAt) {
+    phase = { color: COLORS.red, label: "Overdue — check in when you're out", target: alertAt, from: backAt, caption: "until your contact is alerted", pulse: true };
+  } else if (armed) {
+    phase = { color: COLORS.red, label: "Contact alerted — check in to send the all-clear", target: alertAt, from: alertAt, caption: "since the alert", pulse: true };
+  } else {
+    phase = { color: COLORS.red, label: "Overdue — no safety timer is running", target: backAt, from: backAt, caption: "past your back-by time", pulse: true };
+  }
+  const remainingSec = (phase.target - now) / 1000;
+  const frac = phase.target > phase.from ? Math.max(0, Math.min(1, (phase.target - now) / (phase.target - phase.from))) : 1;
+  const expectedTotal = prediction.expected_min + (trip.breaks_min ?? 0);
+  const deltaMin = Math.round(elapsedSec / 60 - expectedTotal);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div className="trail-head">
         <div className="trail-title">
-          <span className="serif">{route ? trip.name : trip.name}</span>
+          <span className="serif">{trip.name}</span>
           <span className="grade-badge">T{trip.t_grade}</span>
+          {trip.drill && <span className="drill-chip">DRILL</span>}
         </div>
         <span className={`net-chip ${online ? "" : "offline"}`}>
           <span className="dot" style={{ background: online ? "var(--ok)" : "var(--amber)" }} />
-          {online ? "Online" : "Offline — plan is cached"}
+          {online ? "Online" : "Offline — your plan is saved on this phone"}
         </span>
       </div>
 
@@ -143,7 +167,7 @@ export default function Trail({
                 cy="140"
                 r="126"
                 fill="none"
-                stroke={heroColor}
+                stroke={phase.color}
                 strokeWidth="10"
                 strokeLinecap="round"
                 strokeDasharray={RING_C}
@@ -152,19 +176,23 @@ export default function Trail({
               />
             </svg>
             <div className="ring-center">
-              <span className={`ring-status ${urgent || overdue ? "pulsing" : ""}`} style={{ color: heroColor }}>
-                ● {statusLabel}
+              <span className={`ring-status ${phase.pulse ? "pulsing" : ""}`} style={{ color: phase.color }}>
+                ● {phase.label}
               </span>
-              <span className="ring-count" style={{ color: heroColor }}>
+              <span className="ring-count" style={{ color: phase.color }}>
                 {fmtClock(remainingSec)}
               </span>
-              <span className="ring-caption">{countCaption}</span>
+              <span className="ring-caption">{phase.caption}</span>
             </div>
           </div>
 
           <div className="turnback-line">
-            <span className="eyebrow">TURN BACK AT</span>
-            <span className="serif">{fmtTimeOfDay(backByMs)}</span>
+            <span className="eyebrow">TURN AROUND BY</span>
+            <span className="serif">{fmtTimeOfDay(turnAt)}</span>
+            <span className="turnback-sub">
+              back by {fmtTimeOfDay(backAt)}
+              {sunset.sunsetEpochMs != null && <> · sunset {fmtTimeOfDay(sunset.sunsetEpochMs)}</>}
+            </span>
           </div>
 
           <div className="mini-stats">
@@ -173,7 +201,7 @@ export default function Trail({
               <div className="k">out so far</div>
             </div>
             <div className="mini-stat">
-              <div className="v">{fmtHM(prediction.expected_min)}</div>
+              <div className="v">{fmtHM(expectedTotal)}</div>
               <div className="k">expected in total</div>
             </div>
             <div className="mini-stat">
@@ -190,19 +218,21 @@ export default function Trail({
           <div className="briefing-card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 700 }}>Today's briefing</span>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>saved to this device</span>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                {audioState === "ready" ? "saved to this device" : audioState === "preparing" ? "preparing audio…" : "audio unavailable"}
+              </span>
             </div>
             {briefing ? (
               <p className="briefing-text">{briefing}</p>
             ) : (
               <p className="briefing-text" style={{ color: "var(--muted)", fontSize: 16 }}>
-                {briefingErr ? "briefing unavailable right now — the plan above still stands." : "writing…"}
+                {briefingErr ? "Briefing unavailable right now — the plan above still stands." : "writing…"}
               </p>
             )}
             <div className="audio-pill">
               <button
                 className="play"
-                aria-label="Play briefing"
+                aria-label={playing ? "Pause briefing" : "Play briefing"}
                 onClick={togglePlay}
                 disabled={!audioUrl}
                 style={!audioUrl ? { opacity: 0.5, cursor: "default" } : undefined}
@@ -210,12 +240,17 @@ export default function Trail({
                 {playing ? "❚❚" : "▶"}
               </button>
               <span className="time">
-                {audioMM} / {audioDur ? fmtClock(audioDur) : "--:--"}
+                {fmtClock(audioSec)} / {audioDur ? fmtClock(audioDur) : "--:--"}
               </span>
               <div className="track">
                 <div style={{ width: audioDur ? `${(audioSec / audioDur) * 100}%` : "0%" }} />
               </div>
             </div>
+            {audioState === "failed" && (
+              <button className="linklike" style={{ alignSelf: "flex-start" }} onClick={() => setBriefingTry((n) => n + 1)}>
+                Try the briefing again
+              </button>
+            )}
             <audio
               ref={audioRef}
               src={audioUrl ?? undefined}
@@ -228,21 +263,50 @@ export default function Trail({
             />
           </div>
 
-          <div className="timer-row">
-            <span>Safety timer armed</span>
-            <span>
-              Alerts <strong>{trip.contact_email}</strong> if no check-in by {fmtTimeOfDay(backByMs)}
-            </span>
-          </div>
+          {armed ? (
+            <div className="timer-row">
+              <span>Safety timer armed</span>
+              <span>
+                Alerts <strong>{trip.contact_email}</strong> if no check-in by {fmtTimeOfDay(alertAt)}
+              </span>
+            </div>
+          ) : (
+            <div className="timer-row unarmed" role="alert">
+              <strong>Safety timer NOT armed</strong>
+              <span>
+                {trip.contact_email} will not be alerted if something goes wrong.
+                {trip.timer_status.startsWith("failed") && <> ({trip.timer_status.replace(/^failed:\s*/, "")})</>}
+              </span>
+              {armError && <span>Retry failed: {armError}</span>}
+              <button className="btn-secondary" onClick={retryArm} disabled={arming}>
+                {arming ? "Arming…" : "Try arming it again"}
+              </button>
+            </div>
+          )}
 
-          {error && <p className="error" style={{ color: "var(--red)", background: "rgba(181,74,59,.08)", borderRadius: 10, padding: "10px 12px" }}>{error}</p>}
+          {checkinError && <p className="error-box">{checkinError}</p>}
 
-          <button className="im-out" onClick={imOut} disabled={!!busy}>
-            {busy ?? (<>I'm out <span style={{ fontSize: "0.9em" }}>✓</span></>)}
-          </button>
+          {pending ? (
+            <div className="pending-card" role="status">
+              <strong>Check-in saved on this phone</strong>
+              <span>
+                {online
+                  ? "Sending it to your laptop — retrying every few seconds until it lands."
+                  : "You're offline. It sends the moment this phone can reach your laptop."}{" "}
+                Keep this page open.
+              </span>
+              <button className="btn-secondary" onClick={onRetryNow}>
+                Try now
+              </button>
+            </div>
+          ) : (
+            <button className="im-out" onClick={() => onCheckIn(Math.max(1, Math.round(elapsedSec / 60)))}>
+              I'm out <span style={{ fontSize: "0.9em" }}>✓</span>
+            </button>
+          )}
           <p style={{ margin: 0, textAlign: "center", fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
-            Stops the safety timer and lets your contact know you finished. Works offline; it
-            sends as soon as you have signal.
+            One tap stops the safety timer. No signal? It's saved on this phone and sent the moment
+            it can reach your laptop.
           </p>
         </section>
       </div>

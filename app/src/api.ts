@@ -9,24 +9,57 @@ export interface Features {
   t_grade: number;
 }
 
-export interface Trip {
+export interface Route extends Features {
+  lat: number | null;
+  lon: number | null;
+  start_lat: number | null;
+  start_lon: number | null;
+}
+
+/** Minutes after the start for each moment of a trip (the service's timeline()),
+ *  plus clock times once the trip has started. */
+export interface Timeline {
+  turn_around_after_min: number;
+  expected_back_after_min: number;
+  back_by_after_min: number;
+  alert_after_min: number;
+  turn_around_at?: string;
+  expected_back_at?: string;
+  back_by_at?: string;
+  alert_at?: string;
+}
+
+export interface Trip extends Features, Timeline {
   id: number;
   name: string;
-  distance_km: number;
-  climb_m: number;
-  descent_m: number;
-  highest_m: number;
-  t_grade: number;
-  p5_min: number;
+  p5_min: number; // moving-time quantiles, already scaled by your pace factor
   expected_min: number;
   p90_min: number;
   p95_min: number;
+  crowd_min: number | null;
+  pace_factor: number;
+  breaks_min: number;
+  hiker_name: string | null;
+  contact_email: string | null;
   started_at: string | null;
   finished_at: string | null;
   actual_min: number | null;
+  moving_min: number | null;
   status: string;
-  contact_email: string | null;
-  safety_timer?: string;
+  timer_status: string; // not_started | armed | failed: <why>
+  sunset_at: string | null;
+  rain_pct: number | null;
+  briefing: string | null;
+  drill: boolean;
+}
+
+export interface CheckinResult extends Trip {
+  checkin_signal: string; // delivered | no_timer | failed: <why>
+  alert_fired: boolean;
+  already_checked_out: boolean;
+  trained: boolean;
+  your_pace_factor: number;
+  your_pace_hikes: number;
 }
 
 export interface Prediction {
@@ -34,6 +67,9 @@ export interface Prediction {
   expected_min: number;
   p90_min: number;
   p95_min: number;
+  crowd_expected_min: number;
+  pace_factor: number;
+  pace_hikes: number;
 }
 
 export interface Sunset {
@@ -43,52 +79,88 @@ export interface Sunset {
   rainChancePct: number | null;
 }
 
+export interface TripCreate extends Features {
+  name: string;
+  contact_email: string;
+  hiker_name: string | null;
+  breaks_min: number;
+  lat: number | null;
+  lon: number | null;
+  start_lat: number | null;
+  start_lon: number | null;
+  sunset_at: string | null;
+  rain_pct: number | null;
+  planned_start: string | null;
+}
+
+/** An HTTP error from the service. Network failures stay plain Errors — the
+ *  difference decides whether a queued check-in is worth retrying. */
+export class HttpError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 const BASE = "/api";
 
 async function j<T>(res: Response): Promise<T> {
   const text = await res.text();
-  if (!res.ok) throw new Error(`${res.status} ${text.slice(0, 200)}`);
+  if (!res.ok) throw new HttpError(res.status, `${res.status} ${text.slice(0, 200)}`);
   return JSON.parse(text) as T;
 }
 
+const post = (path: string, body?: unknown, signal?: AbortSignal) =>
+  fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  });
+
 export const api = {
   analyzeRoute: (file: File, tGrade: number) =>
-    fetch(`/api/route/analyze?t_grade=${tGrade}`, {
+    fetch(`${BASE}/route/analyze?t_grade=${tGrade}`, {
       method: "POST",
       body: file,
       headers: { "Content-Type": "application/gpx+xml" },
-    }).then((r) => j<Features & { lat: number | null; lon: number | null }>(r)),
+    }).then((r) => j<Route>(r)),
 
-  predict: (f: Features, signal?: AbortSignal) =>
-    fetch(`${BASE}/predict`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(f),
-      signal,
-    }).then((r) => j<Prediction>(r)),
+  predict: (f: Features, signal?: AbortSignal) => post("/predict", f, signal).then((r) => j<Prediction>(r)),
 
-  createTrip: (payload: Features & { name: string; contact_email: string }) =>
-    fetch(`${BASE}/trips`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).then((r) => j<Trip>(r)),
+  createTrip: (payload: TripCreate) => post("/trips", payload).then((r) => j<Trip>(r)),
 
-  startTrip: (id: number) =>
-    fetch(`${BASE}/trips/${id}/start`, { method: "POST" }).then((r) => j<Trip>(r)),
+  getTrip: (id: number) => fetch(`${BASE}/trips/${id}`, { signal: AbortSignal.timeout(10_000) }).then((r) => j<Trip>(r)),
+
+  /** drillSec: drills only — the contact is emailed this many seconds after the start. */
+  startTrip: (id: number, drillSec?: number) =>
+    post(`/trips/${id}/start${drillSec ? `?alert_in_sec=${drillSec}` : ""}`).then((r) => j<Trip>(r)),
+
+  armTrip: (id: number) => post(`/trips/${id}/arm`).then((r) => j<Trip>(r)),
 
   checkout: (id: number, actualMin: number) =>
     fetch(`${BASE}/trips/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ actual_min: actualMin }),
-    }).then((r) => j<Trip>(r)),
+      signal: AbortSignal.timeout(20_000),
+    }).then((r) => j<CheckinResult>(r)),
 
-  briefing: (id: number) =>
-    fetch(`${BASE}/trips/${id}/briefing`, { method: "POST" }).then((r) => j<{ briefing: string }>(r)),
+  briefing: (id: number) => post(`/trips/${id}/briefing`).then((r) => j<{ briefing: string }>(r)),
 
-  briefingAudio: (id: number) => fetch(`${BASE}/trips/${id}/briefing/audio`, { method: "POST" }),
+  briefingAudio: async (id: number): Promise<Blob> => {
+    const res = await post(`/trips/${id}/briefing/audio`);
+    if (!res.ok) throw new HttpError(res.status, `${res.status} ${(await res.text()).slice(0, 120)}`);
+    return res.blob();
+  },
 };
+
+/** Clock time `min` minutes after `startIso`, as epoch ms. */
+export function after(startIso: string, min: number): number {
+  return new Date(startIso).getTime() + min * 60_000;
+}
 
 /** Parse elevation samples out of a GPX file, in track order. Used for the
  *  elevation profile card and computed in the browser — the file never leaves

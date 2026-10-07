@@ -1,53 +1,94 @@
 import { useMemo } from "react";
-import type { PlanData, RouteInfo } from "../App";
-import type { Prediction, Trip } from "../api";
+import type { PlanData } from "../App";
+import type { CheckinResult } from "../api";
 import { fmtHM, fmtNum, fmtTimeOfDay, startLabel } from "../format";
 
 export default function Out({
   plan,
-  trip,
+  result,
   onAgain,
 }: {
   plan: PlanData;
-  trip: Trip;
+  result: CheckinResult;
   onAgain: () => void;
 }) {
-  const prediction: Prediction = plan.prediction;
-  const route: RouteInfo = plan.route;
-  const actualMin = trip.actual_min ?? 0;
-  const delta = Math.round(actualMin - prediction.expected_min);
-  const insideRange = actualMin >= prediction.p5_min && actualMin <= prediction.p95_min;
-
-  const startedMs = useMemo(() => new Date(trip.started_at ?? Date.now()).getTime(), [trip.started_at]);
-  const lo = prediction.p5_min;
-  const hi = prediction.p95_min;
+  const { route } = plan;
+  const breaks = result.breaks_min ?? 0;
+  // the clock ran through the breaks, so the prediction gets them too
+  const predicted = result.expected_min + breaks;
+  const lo = result.p5_min + breaks;
+  const hi = result.p95_min + breaks;
+  const actualMin = result.actual_min ?? 0;
+  const delta = Math.round(actualMin - predicted);
+  const insideRange = actualMin >= lo && actualMin <= hi;
   const span = hi - lo || 1;
-  const bandLeft = 0;
-  const bandWidth = 100;
-  const mark = (v: number) => Math.max(0, Math.min(100, ((v - lo) / span) * 100 + (100 - bandWidth) / 2));
+  const mark = (v: number) => Math.max(0, Math.min(100, ((v - lo) / span) * 100));
 
   const gpxUrl = useMemo(() => (plan.file ? URL.createObjectURL(plan.file) : null), [plan.file]);
 
+  const signalFailed = result.checkin_signal.startsWith("failed");
+  const banner = signalFailed
+    ? {
+        warn: true,
+        title: "Checked in — but the timer didn't hear it",
+        body: (
+          <>
+            Your time is saved, but the safety timer couldn't be reached
+            {result.alert_at ? <>, so {result.contact_email} may still be emailed at {fmtTimeOfDay(result.alert_at)}</> : null}.
+            Text them that you're safe. ({result.checkin_signal.replace(/^failed:\s*/, "")})
+          </>
+        ),
+      }
+    : result.alert_fired
+      ? {
+          warn: true,
+          title: "You're checked in",
+          body: (
+            <>
+              Your check-in came after {result.alert_at ? fmtTimeOfDay(result.alert_at) : "the alert time"}, so{" "}
+              {result.contact_email} was emailed. An all-clear is on its way to them now.
+            </>
+          ),
+        }
+      : result.checkin_signal === "no_timer"
+        ? {
+            warn: true,
+            title: "Checked in",
+            body: <>No safety timer was running for this trip, so nobody was watching — or alerted.</>,
+          }
+        : {
+            warn: false,
+            title: "Check-in received",
+            body: (
+              <>
+                Your check-in reached the safety timer at {fmtTimeOfDay(result.finished_at ?? Date.now())}. Nobody was
+                alerted.
+              </>
+            ),
+          };
+
+  const ratio = result.trained && result.moving_min && result.crowd_min ? result.moving_min / result.crowd_min : null;
+  const pct = (x: number) => Math.round(Math.abs(x - 1) * 100);
+  const f = result.your_pace_factor;
+
   return (
     <div className="summary-col">
-      <div className="checkin-banner">
-        <div className="check">✓</div>
+      <div className={`checkin-banner ${banner.warn ? "warn" : ""}`}>
+        <div className="check">{banner.warn ? "!" : "✓"}</div>
         <div>
-          <h1>Check-in received</h1>
-          <p>
-            Your check-in reached the safety timer at {fmtTimeOfDay(trip.finished_at ?? Date.now())}.
-            Nobody was alerted.
-          </p>
+          <h1>{banner.title}</h1>
+          <p>{banner.body}</p>
         </div>
       </div>
 
       <div className="summary-meta">
         <div className="route">
-          <span className="serif">{trip.name}</span>
-          <span className="grade-badge">T{trip.t_grade}</span>
+          <span className="serif">{result.name}</span>
+          <span className="grade-badge">T{result.t_grade}</span>
+          {result.drill && <span className="drill-chip">DRILL</span>}
         </div>
         <span className="when">
-          {startLabel(trip.started_at ?? "")} · {route.distance_km} km · {fmtNum(route.climb_m)} m climb
+          {startLabel(result.started_at ?? "")} · {route.distance_km} km · {fmtNum(route.climb_m)} m climb
         </span>
       </div>
 
@@ -55,39 +96,30 @@ export default function Out({
         <div className="pv-title">Predicted vs actual</div>
         <div className="pv-grid">
           <div>
-            <div className="k">Predicted</div>
-            <div className="big">{fmtHM(prediction.expected_min)}</div>
+            <div className="k">Predicted{breaks ? `, with ${fmtHM(breaks)} of breaks` : ""}</div>
+            <div className="big">{fmtHM(predicted)}</div>
             <div className="sub2">
-              range {fmtHM(prediction.p5_min)} – {fmtHM(prediction.p95_min)}
+              range {fmtHM(lo)} – {fmtHM(hi)}
             </div>
           </div>
           <div>
             <div className="k">Actual</div>
             <div className="big">{fmtHM(actualMin)}</div>
             <div className="sub2">
-              {fmtTimeOfDay(trip.started_at ?? "")} – {fmtTimeOfDay(trip.finished_at ?? "")}
+              {fmtTimeOfDay(result.started_at ?? "")} – {fmtTimeOfDay(result.finished_at ?? "")}
             </div>
           </div>
         </div>
         <div className="pv-viz">
           <div className="pv-strip">
             <div className="track" />
-            <div className="band" style={{ left: `${bandLeft}%`, width: `${bandWidth}%` }} />
-            <div className="tick" style={{ left: `${mark(prediction.expected_min)}%`, background: "var(--green)" }} title="Predicted" />
+            <div className="band" style={{ left: "0%", width: "100%" }} />
+            <div className="tick" style={{ left: `${mark(predicted)}%`, background: "var(--green)" }} title="Predicted" />
             <div className="tick" style={{ left: `${mark(actualMin)}%`, background: "var(--amber)" }} title="Actual" />
           </div>
           <div className="pv-note">
-            {insideRange ? (
-              <>
-                The model was <strong>{fmtHM(Math.abs(delta))} {delta >= 0 ? "optimistic" : "pessimistic"}</strong>.
-                Still inside the predicted range.
-              </>
-            ) : (
-              <>
-                The model was <strong>{fmtHM(Math.abs(delta))} {delta >= 0 ? "optimistic" : "pessimistic"}</strong> —
-                outside the predicted range. This hike is exactly the kind that improves it.
-              </>
-            )}
+            The model was <strong>{fmtHM(Math.abs(delta))} {delta >= 0 ? "optimistic" : "pessimistic"}</strong>
+            {insideRange ? ". Still inside the predicted range." : " — outside the predicted range."}
           </div>
         </div>
       </div>
@@ -98,12 +130,29 @@ export default function Out({
           <path d="M19 6h6v6" stroke="#1F4D35" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <div>
-          <div className="t">This hike just personalized your predictions</div>
-          <div className="d">
-            You were {delta >= 0 ? "a little slower" : "a little faster"} than the average hiker on
-            T{trip.t_grade}-grade terrain. Future estimates for similar routes will account for it.
-            Your data stays on this device.
-          </div>
+          {ratio != null ? (
+            <>
+              <div className="t">This hike just tuned your predictions</div>
+              <div className="d">
+                About {fmtHM(result.moving_min!)} moving (the clock minus your planned breaks) against the
+                crowd's {fmtHM(result.crowd_min!)} for this route: {pct(ratio)}% {ratio > 1 ? "slower" : "faster"}.
+                Your pace factor is now ×{f.toFixed(2)} from {result.your_pace_hikes} hike
+                {result.your_pace_hikes === 1 ? "" : "s"}, so estimates for you run {pct(f)}%{" "}
+                {f >= 1 ? "longer" : "shorter"} than the crowd's. Your data stays on this device.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="t">This one didn't change your predictions</div>
+              <div className="d">
+                {(result.moving_min ?? 0) < 15
+                  ? "Under 15 minutes of moving time is too short to learn from"
+                  : "This hike fell outside what the model can learn from"}
+                , so your pace factor stays ×{f.toFixed(2)}
+                {result.your_pace_hikes ? ` from ${result.your_pace_hikes} hike${result.your_pace_hikes === 1 ? "" : "s"}` : ""}.
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -111,7 +160,7 @@ export default function Out({
         <button className="btn-primary" onClick={onAgain}>
           Plan another hike <span>→</span>
         </button>
-        {gpxUrl && (
+        {gpxUrl && plan.file && (
           <a className="btn-secondary" href={gpxUrl} download={plan.file.name} style={{ display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
             Download GPX track
           </a>

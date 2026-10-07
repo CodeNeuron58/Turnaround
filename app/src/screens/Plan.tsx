@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { api, fetchSunset, gpxElevations, type Prediction, type Sunset, type Trip } from "../api";
+import { after, api, fetchSunset, gpxElevations, type Features, type Prediction, type Route, type Sunset, type Trip } from "../api";
+import { prepareBriefing } from "../briefing";
 import { fmtHM, fmtMargin, fmtNum, fmtTimeOfDay, startLabel } from "../format";
-import type { PlanData, RouteInfo } from "../App";
+import { saved } from "../store";
+import type { PlanData } from "../App";
 
 const GRADE_HINTS: Record<number, string> = {
   1: "T1 · flat valley walking",
@@ -15,6 +17,22 @@ const GRADE_HINTS: Record<number, string> = {
 type Phase = "form" | "loading" | "ready";
 
 const pad = (n: number) => String(n).padStart(2, "0");
+const NO_SUNSET: Sunset = { ok: false, sunset: null, sunsetEpochMs: null, rainChancePct: null };
+
+/** ?drill=120 — the missed-check-in drill: the contact is emailed 120 s after
+ *  Start instead of hours later. Shown loudly on every screen while active. */
+function drillSeconds(): number | undefined {
+  const n = Number(new URLSearchParams(location.search).get("drill"));
+  return Number.isFinite(n) && n >= 30 ? Math.round(n) : undefined;
+}
+
+const features = (r: Route, grade: number): Features => ({
+  distance_km: r.distance_km,
+  climb_m: r.climb_m,
+  descent_m: r.descent_m,
+  highest_m: r.highest_m,
+  t_grade: grade,
+});
 
 export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }) {
   const [phase, setPhase] = useState<Phase>("form");
@@ -24,20 +42,22 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
     const n = new Date(Date.now() + 30 * 60_000);
     return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}`;
   });
+  const [breaks, setBreaks] = useState(30);
+  const [hiker, setHiker] = useState(() => saved.hikerName());
   const [contact, setContact] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [sunset, setSunset] = useState<Sunset | null>(null);
   const [trip, setTrip] = useState<Trip | null>(null);
-  const [route, setRoute] = useState<RouteInfo | null>(null);
+  const [route, setRoute] = useState<Route | null>(null);
   const [elevs, setElevs] = useState<number[] | null>(null);
   const [stage, setStage] = useState("");
   const [loadPct, setLoadPct] = useState(0);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const backByMs = trip ? new Date(start).getTime() + trip.p90_min * 60_000 : 0;
+  const drillSec = drillSeconds();
 
   // elevation profile comes straight from the GPX, parsed in the browser
   useEffect(() => {
@@ -72,30 +92,30 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
       const route = await api.analyzeRoute(file!, grade);
       setLoadPct(38);
       setStage("Asking TabPFN for your time, and the sky for your sunset…");
-      const prediction = await api.predict(
-        {
-          distance_km: route.distance_km,
-          climb_m: route.climb_m,
-          descent_m: route.descent_m,
-          highest_m: route.highest_m,
-          t_grade: route.t_grade,
-        },
-        ac.signal,
-      );
+      const prediction = await api.predict(features(route, grade), ac.signal);
       setLoadPct(84);
       setStage("Checking the sky…");
       const sun = await fetchSunset(route.lat, route.lon, start.slice(0, 10));
       setLoadPct(100);
       setStage("Saving the trip…");
       const t = await api.createTrip({
-        distance_km: route.distance_km,
-        climb_m: route.climb_m,
-        descent_m: route.descent_m,
-        highest_m: route.highest_m,
-        t_grade: route.t_grade,
+        ...features(route, grade),
         name: name.trim(),
         contact_email: contact.trim(),
+        hiker_name: hiker.trim() || null,
+        breaks_min: breaks,
+        lat: route.lat,
+        lon: route.lon,
+        start_lat: route.start_lat,
+        start_lon: route.start_lon,
+        sunset_at: sun.sunsetEpochMs != null ? new Date(sun.sunsetEpochMs).toISOString() : null,
+        rain_pct: sun.rainChancePct,
+        planned_start: new Date(start).toISOString(),
       });
+      saved.setHikerName(hiker.trim());
+      // write and voice the briefing now, while there's signal — it's on the
+      // phone before the trailhead
+      prepareBriefing(t.id).catch(() => {});
       setRoute(route);
       setPrediction(prediction);
       setSunset(sun);
@@ -114,6 +134,19 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
 
   function cancelPredict() {
     abortRef.current?.abort();
+  }
+
+  async function startHike() {
+    if (!trip || !route || !prediction) return;
+    setStarting(true);
+    setError(null);
+    try {
+      const t = await api.startTrip(trip.id, drillSec);
+      onPlanned({ route, prediction, sunset: sunset ?? NO_SUNSET, trip: t, file: file ?? undefined });
+    } catch (e) {
+      setStarting(false);
+      setError(`Couldn't start the trip: ${e instanceof Error ? e.message : e}`);
+    }
   }
 
   if (phase === "loading") {
@@ -142,12 +175,25 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
   }
 
   if (phase === "ready" && trip && prediction && route) {
-    const backBy = new Date(backByMs);
-    const marginMin = sunset?.sunsetEpochMs != null ? Math.round((sunset.sunsetEpochMs - backByMs) / 60_000) : null;
+    // times assume the planned start; the trail screen recounts them from the
+    // moment Start is pressed
+    const startIso = new Date(start).toISOString();
+    const turnAt = after(startIso, trip.turn_around_after_min);
+    const backAt = after(startIso, trip.back_by_after_min);
+    const alertAt = after(startIso, trip.alert_after_min);
+    const marginMin = sunset?.sunsetEpochMs != null ? Math.round((sunset.sunsetEpochMs - backAt) / 60_000) : null;
     const lo = prediction.p5_min * 0.92;
     const hi = prediction.p95_min * 1.05;
     const pct = (v: number) => ((v - lo) / (hi - lo)) * 100;
     const profile = elevPath(elevs);
+    const tuned = prediction.pace_hikes > 0;
+    const pacePct = Math.round(Math.abs(prediction.pace_factor - 1) * 100);
+    const chip =
+      marginMin == null
+        ? { cls: "neutral", text: "Sunset unknown" }
+        : marginMin < 0
+          ? { cls: "warn", text: "Back after dark" }
+          : { cls: "", text: "Good to go" };
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -157,26 +203,34 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
             <div className="ready-title">
               <h1 className="h1 mid">{name}</h1>
               <span className="grade-badge">T{grade}</span>
+              {drillSec && <span className="drill-chip">DRILL · alert {drillSec}s after start</span>}
             </div>
             <span style={{ fontSize: 15, color: "var(--muted)" }}>{startLabel(start)} start</span>
           </div>
-          <span className="good-chip"><span className="dot" />Good to go</span>
+          <span className={`good-chip ${chip.cls}`}><span className="dot" />{chip.text}</span>
         </div>
 
         <div className="two-col">
           <section className="hero-green">
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <span className="eyebrow">TURN BACK BY</span>
-              <span className="turnback-serif">{fmtTimeOfDay(backByMs)}</span>
+              <span className="eyebrow">TURN AROUND BY</span>
+              <span className="turnback-serif">{fmtTimeOfDay(turnAt)}</span>
               <span className="hero-sub">
-                The cautious estimate — 9 in 10 hikes like this finish sooner. If you're not nearly
-                back by then, turn around. You'll still be down before dark.
+                Not at the top — or the far end — by then? Head back. That gets you down by{" "}
+                {fmtTimeOfDay(backAt)}, the cautious estimate: 9 in 10 hikes like this
+                {tuned ? " at your pace" : ""} finish sooner
+                {trip.breaks_min ? `, ${fmtHM(trip.breaks_min)} of breaks included` : ""}.
+                {marginMin != null && marginMin < 0 && " That's after sunset — start earlier or pick a shorter route."}
               </span>
             </div>
             <div className="hero-stats">
               <div>
+                <div className="k">Back by</div>
+                <div className="v">{fmtTimeOfDay(backAt)}</div>
+              </div>
+              <div>
                 <div className="k">Sunset</div>
-                <div className="v">{sunset?.ok && sunset.sunset ? fmtTimeOfDay(sunset.sunset) : "—"}</div>
+                <div className="v">{sunset?.sunsetEpochMs != null ? fmtTimeOfDay(sunset.sunsetEpochMs) : "—"}</div>
               </div>
               <div>
                 <div className="k">Margin</div>
@@ -191,7 +245,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
 
           <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div className="likely-card">
-              <span style={{ fontSize: 13, color: "var(--muted)" }}>Likely time</span>
+              <span style={{ fontSize: 13, color: "var(--muted)" }}>Likely moving time</span>
               <span className="likely-time">{fmtHM(prediction.expected_min)}</span>
               <div className="range-viz">
                 <div className="range-track" />
@@ -202,6 +256,11 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
                 <span>fast {fmtHM(prediction.p5_min)}</span>
                 <span>slow {fmtHM(prediction.p95_min)}</span>
               </div>
+              <span className="pace-line">
+                {tuned
+                  ? `Tuned to you: ${pacePct === 0 ? "the crowd's pace" : `${pacePct}% ${prediction.pace_factor > 1 ? "slower" : "faster"} than the crowd`}, from ${prediction.pace_hikes} hike${prediction.pace_hikes === 1 ? "" : "s"} of yours.`
+                  : "The crowd's estimate. After your first check-in it tunes to your pace."}
+              </span>
             </div>
 
             <div className="elev-card">
@@ -232,27 +291,26 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
           </section>
         </div>
 
+        {error && <p className="error-box">{error}</p>}
+
         <div className="sticky-cta">
           <span className="note-text">
-            Starting arms the safety timer. If you don't check in by{" "}
-            <strong style={{ color: "var(--ink)" }}>{fmtTimeOfDay(backByMs)}</strong>, we email{" "}
-            <strong style={{ color: "var(--ink)" }}>{contact}</strong>.
+            Starting arms the safety timer, and every time counts from that moment.{" "}
+            {drillSec ? (
+              <>
+                <strong style={{ color: "var(--amber-text)" }}>Drill:</strong> we email{" "}
+                <strong style={{ color: "var(--ink)" }}>{contact}</strong> {drillSec} seconds after you press Start
+                unless you check in.
+              </>
+            ) : (
+              <>
+                If you haven't checked in by <strong style={{ color: "var(--ink)" }}>{fmtTimeOfDay(alertAt)}</strong>,
+                we email <strong style={{ color: "var(--ink)" }}>{contact}</strong> your route and where you set off.
+              </>
+            )}
           </span>
-          <button
-            className="btn-primary"
-            onClick={async () => {
-              const t = await api.startTrip(trip.id);
-              onPlanned({
-                route,
-                prediction,
-                sunset: sunset ?? { ok: false, sunset: null, sunsetEpochMs: null, rainChancePct: null },
-                startIso: start,
-                file: file!,
-                trip: t,
-              });
-            }}
-          >
-            Start hike <span>→</span>
+          <button className="btn-primary" onClick={startHike} disabled={starting}>
+            {starting ? "Arming the safety timer…" : <>Start hike <span>→</span></>}
           </button>
         </div>
       </div>
@@ -265,7 +323,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <span className="eyebrow">BEFORE YOU LEAVE</span>
         <h1 className="h1">Plan your hike</h1>
-        <p className="sub">Get a clear plan, a predicted time, and a safe turn-back point.</p>
+        <p className="sub">Get a clear plan, a predicted time, and a safe turn-around point.</p>
       </div>
 
       <div className="card" style={{ overflow: "hidden" }}>
@@ -330,12 +388,29 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
                 <input className="input" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
               </label>
               <label className="field">
+                <span>Planned breaks (min)</span>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  max={480}
+                  step={5}
+                  value={breaks}
+                  onChange={(e) => setBreaks(Math.max(0, Math.min(480, Number(e.target.value) || 0)))}
+                />
+              </label>
+              <label className="field">
+                <span>Your name</span>
+                <input className="input" value={hiker} onChange={(e) => setHiker(e.target.value)} placeholder="so they know who it's about" maxLength={60} />
+              </label>
+              <label className="field">
                 <span>Emergency contact email</span>
                 <input className="input" type="email" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="someone@you.trust" />
               </label>
             </div>
             <span style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
-              They only hear from us if you don't check in after the hike.
+              The model predicts time in motion; your breaks are added on top. Your contact only hears
+              from us if you don't check in after the hike.
             </span>
           </div>
         </div>
@@ -352,7 +427,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
         </div>
       </div>
 
-      {error && <p className="error" style={{ color: "var(--red)", background: "rgba(181,74,59,.08)", borderRadius: 10, padding: "10px 12px" }}>{error}</p>}
+      {error && <p className="error-box">{error}</p>}
     </div>
   );
 }
