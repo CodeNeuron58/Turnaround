@@ -30,5 +30,9 @@ Produced by `prediction/build_dataset.py`. One row = one hike track.
 
 ## Personal hikes
 
-Own GPX exports (Strava / Garmin) can be added to `data/raw/gpx/` later — they feed the
-"the app adapts to you" part of the project.
+Own GPX exports (Strava / Garmin / Komoot — they need timestamps) go in `data/raw/gpx/`
+(gitignored). `prediction/import_hikes.py --grade N` measures each one like the app does,
+takes its moving time from the track, and stores it with the crowd model's median for the
+same route — the ratio feeds your personal pace factor. Finished trips add the same row at
+check-out (moving time ≈ clock time minus planned breaks). Rows live in `trips.db`'s
+`personal_hikes` table; hikes under 15 min of moving time are ignored.
