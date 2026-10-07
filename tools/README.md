@@ -21,8 +21,11 @@ curl -4L "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/
 ```bash
 curl -4L https://github.com/temporalio/cli/releases/download/v1.9.1/temporal_cli_1.9.1_windows_amd64.zip -o temporal-cli.zip
 unzip temporal-cli.zip -d temporal
-temporal/temporal.exe server start-dev --port 7233
+temporal/temporal.exe server start-dev --port 7233 --db-filename temporal/turnaround.db
 ```
+
+`--db-filename` persists running timers to disk, so a restart of the Temporal server (or the
+laptop) doesn't drop them. Delete `turnaround.db` together with `data/trips.db` when starting fresh.
 
 ## The briefing pipeline (proven working, Oct 6)
 

@@ -1,6 +1,6 @@
 """Build the training table for hike-time prediction.
 
-Source: "GPS recorded hikes from hikr.org" (Kaggle: broccoli/gpx-hike-tracks) —
+Source: "GPS recorded hikes from hikr.org" (Kaggle: roccoli/gpx-hike-tracks) —
 ~12,000 GPX tracks scraped from hikr.org in spring 2018. Every feature we need
 is precomputed in the CSV metadata, so the huge raw GPX column is never read.
 
