@@ -38,12 +38,12 @@ Then one process per terminal:
 | Temporal server | `tools\temporal\temporal.exe server start-dev --port 7233` |
 | Prediction service | `.venv\Scripts\python.exe -m uvicorn prediction.service:app --port 8000` |
 | Safety-timer worker | `npm run worker -w @turnaround/workflows` |
+| **The app (three screens)** | `npm run dev -w @turnaround/app` → open http://localhost:5173 |
 
-Plan + start a trip through the API (curl recipes in [workflows/README.md](workflows/README.md)), or run the agent end-to-end:
-
-```bash
-npx tsx agent/src/cli.ts --gpx data/test-route.gpx --grade 3
-```
+Plan a hike in the app — the Start button arms the Temporal timer, the briefing
+screen speaks, and "I'm out" checks you in. The agent CLI
+(`npx tsx agent/src/cli.ts --gpx data/test-route.gpx --grade 3`) runs the same
+flow from a terminal; curl recipes live in [workflows/README.md](workflows/README.md).
 
 ## Why open source
 
