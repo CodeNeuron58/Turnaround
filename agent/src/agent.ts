@@ -4,7 +4,7 @@
 //   1. read a route        -> prediction service  POST /route/analyze
 //   2. get weather+sunset  -> Open-Meteo (plain fetch)
 //   3. predict hike time   -> prediction service  POST /predict (TabPFN)
-//   4. compute turn-back   -> start + P90 estimate vs sunset
+//   4. compute turn-around -> when to turn around and be back by, vs sunset
 // Then Gemma 4 (local Ollama) writes the spoken briefing and Piper renders it.
 //
 // Every call is localhost or a free open API; nothing about the hiker leaves
@@ -152,27 +152,53 @@ export async function predictHike(f: Features) {
   return r as { p5_min: number; expected_min: number; p90_min: number; p95_min: number };
 }
 
-/** Ability 4 — the turn-back rule: when the cautious (P90) estimate says you'd
- *  still make it down, expressed against sunset. sunsetKnown=false means we
- *  could not get a trustworthy sunset — the caller must say so, never assume
- *  "fine". */
+/** Share of the cautious time to spend heading out before turning around, if
+ *  you retrace your steps from the far point — mirrors turnaround_share() in
+ *  prediction/service.py: Naismith's split (12 min per km each way, plus 1 min
+ *  per 10 m of ascent, all of it on the way out), clamped to 0.5-0.7. */
+export function turnaroundShare(distanceKm: number, climbM: number): number {
+  const out = 6 * distanceKm + 0.1 * climbM;
+  const back = 6 * distanceKm;
+  return Math.min(0.7, Math.max(0.5, out / (out + back)));
+}
+
+/** Ability 4 — the turn-around rule. The model predicts moving time; planned
+ *  breaks are added on top. backBy = start + P90 + breaks (9 in 10 similar
+ *  hikes are done by then); turnAroundBy = Naismith's outbound share of that —
+ *  not at the top or the far end by then, head back. Measured against sunset;
+ *  sunsetKnown=false means we could not get a trustworthy sunset — the caller
+ *  must say so, never assume "fine". */
 export function computeTurnBack(
   startIso: string,
   p90Min: number,
   weather: Pick<Weather, "sunset" | "sunsetEpochMs">,
+  route: Pick<Features, "distance_km" | "climb_m">,
+  breaksMin = 30,
 ) {
   const start = new Date(startIso);
   if (Number.isNaN(start.getTime())) throw new Error(`unparseable start time: ${startIso}`);
-  const backBy = new Date(start.getTime() + p90Min * 60_000);
+  const backByMin = p90Min + breaksMin;
+  const backBy = new Date(start.getTime() + backByMin * 60_000);
+  const turnAroundBy = new Date(start.getTime() + turnaroundShare(route.distance_km, route.climb_m) * backByMin * 60_000);
   const fmt = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   const result: {
+    turnAroundBy: string;
     backBy: string;
+    breaksMin: number;
     sunset: string | null;
     sunsetKnown: boolean;
     marginMin: number | null;
     afterDark: boolean;
-  } = { backBy: fmt(backBy), sunset: weather.sunset ?? null, sunsetKnown: false, marginMin: null, afterDark: false };
+  } = {
+    turnAroundBy: fmt(turnAroundBy),
+    backBy: fmt(backBy),
+    breaksMin,
+    sunset: weather.sunset ?? null,
+    sunsetKnown: false,
+    marginMin: null,
+    afterDark: false,
+  };
   if (weather.sunsetEpochMs != null) {
     result.sunsetKnown = true;
     result.marginMin = Math.round((weather.sunsetEpochMs - backBy.getTime()) / 60_000);
@@ -247,6 +273,7 @@ export async function planTrip(opts: {
   gpxPath: string;
   tGrade?: number;
   startIso: string;
+  breaksMin?: number;
   speakWav?: string;
 }): Promise<PlanResult> {
   const route = await readRoute(opts.gpxPath, opts.tGrade);
@@ -263,7 +290,7 @@ export async function planTrip(opts: {
   const weather = await getWeather(route.lat, route.lon, date).catch(
     (e: unknown): Weather => ({ ok: false, sunset: null, sunsetEpochMs: null, rainChancePct: null, tempMaxC: null, error: String(e) }),
   );
-  const turnBack = computeTurnBack(opts.startIso, prediction.p90_min, weather);
+  const turnBack = computeTurnBack(opts.startIso, prediction.p90_min, weather, route, opts.breaksMin ?? 30);
 
   let briefing: string | undefined;
   let briefingError: string | undefined;
@@ -272,12 +299,13 @@ export async function planTrip(opts: {
     const facts = [
       "Write a short spoken briefing for a hiker about to start this trip.",
       "Sound like a friend who hikes, not a robot. 4 to 6 short sentences.",
-      "No lists, no markdown, no emoji. Weave in the turn-back time and the",
+      "No lists, no markdown, no emoji. Weave in the turn-around rule and the",
       "sunset situation naturally. Facts:",
       `Route: ${route.distance_km} km, ${route.climb_m} m of climbing, high point ${route.highest_m} m, grade T${route.t_grade}.`,
-      `Started at ${opts.startIso}; expected moving time ${Math.round(prediction.expected_min)} min; turn back by ${turnBack.backBy}.`,
+      `Starting at ${opts.startIso}; expected moving time ${Math.round(prediction.expected_min)} min plus ${turnBack.breaksMin} min of breaks.`,
+      `If they are not at the top or the far end of the route by ${turnBack.turnAroundBy}, they turn around and head back; they should be back by ${turnBack.backBy}.`,
       weather.ok
-        ? `Sunset ${weather.sunset} — that is ${turnBack.marginMin} minutes after the turn-back time. Rain chance ${weather.rainChancePct ?? "unknown"}%.`
+        ? `Sunset ${weather.sunset} — that is ${turnBack.marginMin} minutes after the back-by time. Rain chance ${weather.rainChancePct ?? "unknown"}%.`
         : "Sunset time unknown (no forecast available) — tell the hiker to plan to be back early rather than inventing a sunset.",
     ].join(" ");
     briefing = await writeBriefing(facts);

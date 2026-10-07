@@ -1,5 +1,5 @@
 // CLI: plan a trip end-to-end and save the artifacts.
-//   npx tsx agent/src/cli.ts --gpx data/test-route.gpx --grade 3 --start "2026-10-10T07:30"
+//   npx tsx agent/src/cli.ts --gpx data/test-route.gpx --grade 3 --start "2026-10-10T07:30" [--breaks 30]
 // Artifacts land in agent/output (gitignored): plan.json, briefing.txt, briefing.wav.
 // plan.json is written as soon as the core flow (route + prediction + turn-back)
 // succeeds — briefing/TTS failures are recorded in it, not thrown away.
@@ -25,7 +25,7 @@ function hasFlag(name: string): boolean {
 }
 
 if (hasFlag("help") || argv.length === 0) {
-  console.log(`usage: npx tsx agent/src/cli.ts --gpx <file.gpx> [--grade 1-6] [--start "YYYY-MM-DDTHH:mm"] [--out dir] [--no-speak] [--help]`);
+  console.log(`usage: npx tsx agent/src/cli.ts --gpx <file.gpx> [--grade 1-6] [--start "YYYY-MM-DDTHH:mm"] [--breaks min] [--out dir] [--no-speak] [--help]`);
   process.exit(argv.length === 0 ? 1 : 0);
 }
 
@@ -54,6 +54,13 @@ if (Number.isNaN(new Date(startIso).getTime())) {
   process.exit(1);
 }
 
+const breaksArg = arg("breaks");
+const breaksMin = breaksArg === undefined ? 30 : Number(breaksArg);
+if (!Number.isFinite(breaksMin) || breaksMin < 0 || breaksMin > 480) {
+  console.error(`--breaks must be 0-480 minutes (got "${breaksArg}")`);
+  process.exit(1);
+}
+
 const outDir = path.resolve(arg("out") ?? path.join(import.meta.dirname, "..", "output"));
 mkdirSync(outDir, { recursive: true });
 
@@ -62,6 +69,7 @@ try {
     gpxPath,
     tGrade,
     startIso,
+    breaksMin,
     speakWav: hasFlag("no-speak") ? undefined : path.join(outDir, "briefing.wav"),
   });
 
