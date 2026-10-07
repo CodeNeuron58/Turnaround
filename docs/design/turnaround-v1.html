@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#F3F0E6;color:#1E2620;font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#1F4D35}a:hover{color:#163828}
+input,button{font-family:inherit}
+@keyframes ta-spin{to{transform:rotate(360deg)}}
+@keyframes ta-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+
+  <header style="position:sticky;top:0;z-index:10;background:rgba(243,240,230,.92);backdrop-filter:blur(8px);border-bottom:1px solid #E2DDCF">
+    <div style="max-width:1180px;margin:0 auto;padding:14px clamp(16px,4vw,32px);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg width="30" height="22" viewBox="0 0 30 22" fill="none"><path d="M1 21 L10 6 L15 13 L19 8 L29 21 Z" stroke="#1F4D35" stroke-width="2" stroke-linejoin="round"></path><path d="M10 6 L12.5 10" stroke="#1F4D35" stroke-width="2"></path></svg>
+        <span style="font-family:'Newsreader',serif;font-size:22px;font-weight:500;letter-spacing:-.01em">Turnaround</span>
+        <span style="font-size:11px;color:#5E665F;border:1px solid #D8D3C4;border-radius:999px;padding:2px 8px;margin-left:4px">open source</span>
+      </div>
+      <nav style="display:flex;gap:4px;background:#E9E5D8;border-radius:999px;padding:4px">
+        <sc-for list="{{ steps }}" as="s" hint-placeholder-count="3">
+          <button onClick="{{ s.go }}" style="border:0;cursor:pointer;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;background:{{ s.bg }};color:{{ s.fg }};box-shadow:{{ s.shadow }}">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.7">{{ s.num }}</span>{{ s.label }}
+          </button>
+        </sc-for>
+      </nav>
+    </div>
+  </header>
+
+  <main style="flex:1;width:100%;max-width:1180px;margin:0 auto;padding:clamp(24px,5vw,56px) clamp(16px,4vw,32px) 64px">
+
+    <!-- ============ PLAN ============ -->
+    <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:clamp(24px,4vw,48px);align-items:start">
+
+        <section style="display:flex;flex-direction:column;gap:22px">
+          <div>
+            <h1 style="font-family:'Newsreader',serif;font-weight:500;font-size:clamp(40px,5.5vw,60px);line-height:1;letter-spacing:-.02em;margin:0 0 12px">Plan your hike</h1>
+            <p style="margin:0;color:#5E665F;font-size:17px;line-height:1.5;max-width:44ch;text-wrap:pretty">Get a clear plan, a predicted time, and a safe turn-back point.</p>
+          </div>
+
+          <label style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:14px;font-weight:600">Route name</span>
+            <input value="{{ routeName }}" onChange="{{ onRouteName }}" placeholder="e.g. Ridge Trail" style="height:50px;border:1px solid #DCD7C9;background:#FBFAF5;border-radius:12px;padding:0 16px;font-size:16px;color:#1E2620;outline:none"></input>
+          </label>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:14px;font-weight:600">GPX file</span>
+            <sc-if value="{{ hasFile }}" hint-placeholder-val="{{ true }}">
+              <div style="height:50px;border:1px solid #DCD7C9;background:#FBFAF5;border-radius:12px;padding:0 8px 0 16px;display:flex;align-items:center;gap:12px">
+                <svg width="16" height="18" viewBox="0 0 16 18" fill="none"><path d="M2 1h8l4 4v12H2z" stroke="#1F4D35" stroke-width="1.6" stroke-linejoin="round"></path><path d="M10 1v4h4" stroke="#1F4D35" stroke-width="1.6"></path></svg>
+                <span style="flex:1;font-size:15px;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fileName }}</span>
+                <button onClick="{{ clearFile }}" aria-label="Remove file" style="width:36px;height:36px;border:0;background:transparent;border-radius:8px;cursor:pointer;color:#5E665F;font-size:18px" style-hover="background:#EEEADF">×</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noFile }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ pickFile }}" style="min-height:92px;border:1.5px dashed #C9C3B2;background:#FBFAF5;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#1E2620" style-hover="border-color:#1F4D35;background:#F6F4EC">
+                <span style="font-size:15px;font-weight:600">Drop a .gpx file or browse</span>
+                <span style="font-size:13px;color:#5E665F">Exported from Komoot, Strava, Gaia, or any GPS app</span>
+              </button>
+            </sc-if>
+            <input ref="{{ fileRef }}" type="file" accept=".gpx" onChange="{{ onFile }}" style="display:none"></input>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:14px;font-weight:600">Grade <span style="font-weight:400;color:#5E665F">· SAC scale T1–T6</span></span>
+            <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px">
+              <sc-for list="{{ grades }}" as="g" hint-placeholder-count="6">
+                <button onClick="{{ g.pick }}" title="{{ g.hint }}" style="height:46px;border-radius:10px;cursor:pointer;font-size:15px;font-weight:600;border:1px solid {{ g.border }};background:{{ g.bg }};color:{{ g.fg }}">{{ g.id }}</button>
+              </sc-for>
+            </div>
+            <span style="font-size:13px;color:#5E665F">{{ gradeHint }}</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:16px">
+            <label style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:14px;font-weight:600">Start time</span>
+              <input type="datetime-local" value="{{ startTime }}" onChange="{{ onStart }}" style="height:50px;border:1px solid #DCD7C9;background:#FBFAF5;border-radius:12px;padding:0 14px;font-size:16px;color:#1E2620;outline:none"></input>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:14px;font-weight:600">Emergency contact email</span>
+              <input type="email" value="{{ email }}" onChange="{{ onEmail }}" placeholder="someone@you.trust" style="height:50px;border:1px solid #DCD7C9;background:#FBFAF5;border-radius:12px;padding:0 16px;font-size:16px;color:#1E2620;outline:none"></input>
+            </label>
+          </div>
+
+          <button onClick="{{ predict }}" disabled="{{ predictDisabled }}" style="height:56px;border:0;border-radius:999px;background:#1F4D35;color:#fff;font-size:17px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;opacity:{{ predictOpacity }}" style-hover="background:#163828">Predict my time <span>→</span></button>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:14px">
+          <sc-if value="{{ phaseEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px solid #E2DDCF;border-radius:20px;background:#FBFAF5;padding:clamp(28px,4vw,44px);display:flex;flex-direction:column;gap:12px;min-height:420px;justify-content:center">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#5E665F;letter-spacing:.06em">YOUR PLAN</span>
+              <p style="font-family:'Newsreader',serif;font-size:28px;line-height:1.2;margin:0;max-width:22ch;text-wrap:pretty">Add a route and we'll tell you when to turn back.</p>
+              <p style="margin:0;color:#5E665F;font-size:15px;line-height:1.5;max-width:42ch">Prediction uses the route's distance and climb, the grade, daylight, and the forecast. It takes about 20 seconds.</p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phaseLoading }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px solid #E2DDCF;border-radius:20px;background:#FBFAF5;padding:clamp(28px,4vw,44px);display:flex;flex-direction:column;gap:22px;min-height:420px;justify-content:center">
+              <div style="display:flex;align-items:center;gap:16px">
+                <div style="width:44px;height:44px;border-radius:50%;border:3px solid #DCE6DD;border-top-color:#1F4D35;animation:ta-spin 1s linear infinite;flex:none"></div>
+                <div style="flex:1">
+                  <div style="font-family:'Newsreader',serif;font-size:26px">Predicting your time…</div>
+                  <div style="font-size:14px;color:#5E665F">{{ loadStage }}</div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#5E665F">~{{ loadLeft }}s</span>
+              </div>
+              <div style="height:6px;background:#E9E5D8;border-radius:999px;overflow:hidden">
+                <div style="height:100%;background:#1F4D35;border-radius:999px;width:{{ loadPct }};transition:width .4s linear"></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ loadSteps }}" as="ls" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:{{ ls.color }}"><span style="width:18px;text-align:center">{{ ls.mark }}</span>{{ ls.text }}</div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phaseReady }}" hint-placeholder-val="{{ true }}">
+            <div style="border:1px solid #E2DDCF;border-radius:20px;background:#FBFAF5;overflow:hidden">
+              <div style="padding:20px 22px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span style="font-family:'Newsreader',serif;font-size:26px">{{ routeLabel }}</span>
+                <span style="font-size:12px;font-weight:700;background:#E9E5D8;border-radius:6px;padding:3px 8px">{{ grade }}</span>
+              </div>
+              <svg viewBox="0 0 400 90" preserveAspectRatio="none" style="display:block;width:100%;height:90px;margin-top:12px">
+                <path d="{{ profileArea }}" fill="#E3EDE4"></path>
+                <path d="{{ profileLine }}" fill="none" stroke="#1F4D35" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+              </svg>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #E2DDCF">
+                <div style="padding:14px 22px;border-right:1px solid #E2DDCF"><div style="font-size:12px;color:#5E665F">Distance</div><div style="font-size:20px;font-weight:600">8.4 km</div></div>
+                <div style="padding:14px 22px;border-right:1px solid #E2DDCF"><div style="font-size:12px;color:#5E665F">Climb</div><div style="font-size:20px;font-weight:600">720 m</div></div>
+                <div style="padding:14px 22px"><div style="font-size:12px;color:#5E665F">High point</div><div style="font-size:20px;font-weight:600">2,320 m</div></div>
+              </div>
+            </div>
+
+            <div style="border-radius:20px;background:#1F4D35;color:#F3F0E6;padding:clamp(22px,3vw,32px);display:flex;flex-direction:column;gap:6px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.08em;color:#B9CDBE">TURN BACK BY</span>
+              <span style="font-family:'Newsreader',serif;font-weight:500;font-size:clamp(72px,10vw,112px);line-height:.95;letter-spacing:-.03em">2:10 PM</span>
+              <span style="font-size:15px;color:#CFDDD2;line-height:1.5;max-width:46ch">If you haven't reached the top by then, turn around. That leaves time to get down before dark.</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:14px">
+              <div style="border:1px solid #E2DDCF;border-radius:16px;background:#FBFAF5;padding:16px 18px">
+                <div style="font-size:12px;color:#5E665F">Likely time</div>
+                <div style="font-size:24px;font-weight:600">4 h 12 m</div>
+                <div style="font-size:13px;color:#5E665F">range 3 h 45 m – 4 h 52 m</div>
+              </div>
+              <div style="border:1px solid #E2DDCF;border-radius:16px;background:#FBFAF5;padding:16px 18px">
+                <div style="font-size:12px;color:#5E665F">Sunset</div>
+                <div style="font-size:24px;font-weight:600">5:48 PM</div>
+                <div style="font-size:13px;color:#1F4D35;font-weight:600">+2 h margin</div>
+              </div>
+              <div style="border:1px solid #E2DDCF;border-radius:16px;background:#FBFAF5;padding:16px 18px">
+                <div style="font-size:12px;color:#5E665F">Rain chance</div>
+                <div style="font-size:24px;font-weight:600">12%</div>
+                <div style="font-size:13px;color:#5E665F">clouds after 1 PM</div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+              <button onClick="{{ startHike }}" style="height:60px;border:0;border-radius:999px;background:#1F4D35;color:#fff;font-size:18px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px" style-hover="background:#163828">Start hike <span>→</span></button>
+              <p style="margin:0;text-align:center;font-size:13px;color:#5E665F;line-height:1.5">Starting arms the safety timer. If you don't check in by 6:30 PM, we email <strong style="color:#1E2620">{{ emailLabel }}</strong>.</p>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ============ ON TRAIL ============ -->
+    <sc-if value="{{ isTrail }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-family:'Newsreader',serif;font-size:26px">{{ routeLabel }}</span>
+            <span style="font-size:12px;font-weight:700;background:#E9E5D8;border-radius:6px;padding:3px 8px">{{ grade }}</span>
+          </div>
+          <button onClick="{{ toggleOffline }}" style="border:1px solid {{ netBorder }};background:{{ netBg }};color:{{ netFg }};border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <span style="width:8px;height:8px;border-radius:50%;background:{{ netDot }}"></span>{{ netLabel }}
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px;align-items:start">
+          <section style="border-radius:24px;background:{{ heroBg }};border:1px solid {{ heroBorder }};padding:clamp(24px,4vw,40px);display:flex;flex-direction:column;align-items:center;gap:20px;transition:background .4s">
+            <div style="position:relative;width:min(100%,340px);aspect-ratio:1">
+              <svg viewBox="0 0 280 280" style="width:100%;height:100%;transform:rotate(-90deg)">
+                <circle cx="140" cy="140" r="126" fill="none" stroke="{{ ringTrack }}" stroke-width="10"></circle>
+                <circle cx="140" cy="140" r="126" fill="none" stroke="{{ heroColor }}" stroke-width="10" stroke-linecap="round" stroke-dasharray="791.7" stroke-dashoffset="{{ ringOffset }}" style="transition:stroke-dashoffset 1s linear,stroke .4s"></circle>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center">
+                <span style="font-size:14px;font-weight:700;color:{{ heroColor }};display:flex;align-items:center;gap:6px;animation:{{ statusAnim }}">● {{ statusLabel }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:clamp(46px,8vw,64px);letter-spacing:-.04em;color:{{ countColor }};line-height:1.05">{{ countText }}</span>
+                <span style="font-size:14px;color:#5E665F">{{ countCaption }}</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.08em;color:#5E665F">TURN BACK AT</span>
+              <span style="font-family:'Newsreader',serif;font-size:48px;font-weight:500;line-height:1">2:10 PM</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;width:100%">
+              <div style="background:#FBFAF5;border:1px solid #E2DDCF;border-radius:14px;padding:12px 14px"><div style="font-size:20px;font-weight:600">{{ outText }}</div><div style="font-size:12px;color:#5E665F">out so far</div></div>
+              <div style="background:#FBFAF5;border:1px solid #E2DDCF;border-radius:14px;padding:12px 14px"><div style="font-size:20px;font-weight:600">{{ expectedText }}</div><div style="font-size:12px;color:#5E665F">expected by now</div></div>
+              <div style="background:#FBFAF5;border:1px solid #E2DDCF;border-radius:14px;padding:12px 14px"><div style="font-size:20px;font-weight:600;color:{{ deltaColor }}">{{ deltaText }}</div><div style="font-size:12px;color:#5E665F">vs expected</div></div>
+            </div>
+          </section>
+
+          <section style="display:flex;flex-direction:column;gap:16px">
+            <div style="border:1px solid #E2DDCF;border-radius:20px;background:#FBFAF5;padding:22px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                <span style="font-size:16px;font-weight:700">Today's briefing</span>
+                <span style="font-size:12px;color:#5E665F">saved to this device</span>
+              </div>
+              <p style="margin:0;font-family:'Newsreader',serif;font-size:21px;line-height:1.45;text-wrap:pretty">Clear morning, clouds building after 1 PM. Stay on the marked trail and watch for wet rock below the upper ridge. Water at the hut at km 3.1. Turn back at 2:10 PM even if the summit looks close.</p>
+              <div style="display:flex;align-items:center;gap:14px;background:#F1EEE4;border-radius:999px;padding:6px 18px 6px 6px">
+                <button onClick="{{ togglePlay }}" aria-label="Play briefing" style="width:48px;height:48px;border-radius:50%;border:0;background:#1F4D35;color:#fff;cursor:pointer;font-size:16px;flex:none">{{ playIcon }}</button>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#5E665F;white-space:nowrap">{{ audioTime }} / 2:18</span>
+                <div style="flex:1;height:4px;background:#DCD7C9;border-radius:999px;overflow:hidden"><div style="height:100%;background:#1F4D35;width:{{ audioPct }}"></div></div>
+              </div>
+            </div>
+
+            <div style="border:1px solid #E2DDCF;border-radius:20px;background:#FBFAF5;padding:18px 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px">
+              <span style="color:#5E665F">Safety timer armed</span>
+              <span>Alerts <strong>{{ emailLabel }}</strong> at 6:30 PM</span>
+            </div>
+
+            <button onClick="{{ imOut }}" style="height:clamp(84px,12vw,104px);border:0;border-radius:28px;background:#1F4D35;color:#fff;font-size:clamp(26px,3.4vw,32px);font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:14px;box-shadow:0 10px 30px -12px rgba(31,77,53,.6)" style-hover="background:#163828" style-active="transform:scale(.99)">I'm out <span style="font-size:.9em">✓</span></button>
+            <p style="margin:0;text-align:center;font-size:13px;color:#5E665F;line-height:1.5">Stops the safety timer and lets your contact know you finished. Works offline; it sends as soon as you have signal.</p>
+          </section>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ SUMMARY ============ -->
+    <sc-if value="{{ isSummary }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:18px">
+        <div style="border-radius:24px;background:#E3EDE4;border:1px solid #CBDCCD;padding:clamp(22px,4vw,36px);display:flex;gap:18px;align-items:flex-start">
+          <div style="width:52px;height:52px;border-radius:50%;background:#1F4D35;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;flex:none">✓</div>
+          <div>
+            <h1 style="font-family:'Newsreader',serif;font-weight:500;font-size:clamp(32px,4.5vw,46px);line-height:1.05;margin:0 0 8px;letter-spacing:-.015em">Check-in received</h1>
+            <p style="margin:0;font-size:17px;color:#2E4A38;line-height:1.5">Your check-in reached the safety timer at 12:24 PM. Nobody was alerted.</p>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:8px 4px 0">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'Newsreader',serif;font-size:26px">{{ routeLabel }}</span><span style="font-size:12px;font-weight:700;background:#E9E5D8;border-radius:6px;padding:3px 8px">{{ grade }}</span></div>
+          <span style="font-size:14px;color:#5E665F">Sat, 12 Apr 2026 · 8.4 km · 720 m climb</span>
+        </div>
+
+        <div style="border:1px solid #E2DDCF;border-radius:20px;background:#FBFAF5;overflow:hidden">
+          <div style="padding:20px 24px 4px;font-size:16px;font-weight:700">Predicted vs actual</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr))">
+            <div style="padding:16px 24px 22px">
+              <div style="font-size:13px;color:#5E665F">Predicted</div>
+              <div style="font-family:'Newsreader',serif;font-size:clamp(40px,6vw,56px);line-height:1.05">4 h 12 m</div>
+              <div style="font-size:13px;color:#5E665F">range 3 h 45 m – 4 h 52 m</div>
+            </div>
+            <div style="padding:16px 24px 22px;border-left:1px solid #E2DDCF">
+              <div style="font-size:13px;color:#5E665F">Actual</div>
+              <div style="font-family:'Newsreader',serif;font-size:clamp(40px,6vw,56px);line-height:1.05">4 h 24 m</div>
+              <div style="font-size:13px;color:#5E665F">8:00 AM – 12:24 PM</div>
+            </div>
+          </div>
+          <div style="padding:0 24px 22px">
+            <div style="position:relative;height:28px">
+              <div style="position:absolute;top:12px;left:0;right:0;height:4px;background:#E9E5D8;border-radius:999px"></div>
+              <div style="position:absolute;top:8px;left:0;width:36%;height:12px;background:#E3EDE4;border-radius:999px;margin-left:18%"></div>
+              <div style="position:absolute;top:4px;left:36%;width:3px;height:20px;background:#1F4D35;border-radius:2px" title="Predicted"></div>
+              <div style="position:absolute;top:4px;left:40.5%;width:3px;height:20px;background:#B7791F;border-radius:2px" title="Actual"></div>
+            </div>
+            <div style="margin-top:12px;background:#FBF0D9;border:1px solid #F0DDB3;color:#6B4810;border-radius:12px;padding:12px 16px;font-size:15px">The model was <strong>12 min optimistic</strong>. Still inside the predicted range.</div>
+          </div>
+        </div>
+
+        <div style="border:1px solid #E2DDCF;border-radius:20px;background:#FBFAF5;padding:20px 24px;display:flex;gap:16px;align-items:flex-start">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="flex:none;margin-top:2px"><path d="M3 22 L10 14 L15 18 L25 6" stroke="#1F4D35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M19 6h6v6" stroke="#1F4D35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">This hike just personalized your predictions</div>
+            <div style="font-size:15px;color:#5E665F;line-height:1.5">You climb a little slower than average on T3 terrain. Future estimates for similar routes will account for it. Your data stays on this device.</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-top:6px">
+          <button onClick="{{ planAnother }}" style="height:56px;border:0;border-radius:999px;background:#1F4D35;color:#fff;font-size:17px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px" style-hover="background:#163828">Plan another hike <span>→</span></button>
+          <button style="height:56px;border:1px solid #CFC9B9;border-radius:999px;background:transparent;color:#1E2620;font-size:17px;font-weight:600;cursor:pointer" style-hover="background:#ECE8DC">Download GPX track</button>
+        </div>
+      </div>
+    </sc-if>
+
+  </main>
+
+  <footer style="border-top:1px solid #E2DDCF">
+    <div style="max-width:1180px;margin:0 auto;padding:18px clamp(16px,4vw,32px);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:#5E665F">
+      <span>Turnaround is a planning aid. Your judgment on the mountain comes first.</span>
+      <a href="#" style="color:#1F4D35;font-weight:600">View source on GitHub</a>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;On track&quot;,&quot;Under 15 min&quot;,&quot;Overdue&quot;],&quot;default&quot;:&quot;On track&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;On trail&quot;},&quot;predictSeconds&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:2,&quot;max&quot;:20,&quot;step&quot;:1,&quot;unit&quot;:&quot;s&quot;,&quot;default&quot;:6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Plan&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'plan', phase: 'ready', routeName: 'Ridge Trail', fileName: 'ridge_trail.gpx',
+    grade: 'T3', startTime: '2026-04-12T08:00', email: 'friend@gmail.com',
+    load: 0, offline: true, remaining: null, playing: false, audio: 0
+  };
+  fileRef = React.createRef();
+  componentDidMount() {
+    this.tick = setInterval(() => {
+      const s = this.state;
+      if (s.screen === 'trail') {
+        const up = { remaining: (s.remaining ?? this.initRemaining()) - 1 };
+        if (s.playing) { up.audio = Math.min(138, s.audio + 1); if (up.audio >= 138) up.playing = false; }
+        this.setState(up);
+      }
+    }, 1000);
+  }
+  componentDidUpdate(pp) { if (pp.scenario !== this.props.scenario) this.setState({ remaining: this.initRemaining() }); }
+  componentWillUnmount() { clearInterval(this.tick); clearInterval(this.loader); }
+  initRemaining() { const sc = this.props.scenario ?? 'On track'; return sc === 'Under 15 min' ? 11 * 60 + 40 : sc === 'Overdue' ? -(6 * 60 + 12) : 1 * 3600 + 32 * 60 + 15; }
+  go(screen) { this.setState({ screen, remaining: screen === 'trail' ? this.initRemaining() : this.state.remaining }); window.scrollTo(0, 0); }
+  predict = () => {
+    clearInterval(this.loader);
+    const dur = (this.props.predictSeconds ?? 6) * 10;
+    this.setState({ phase: 'loading', load: 0 });
+    this.loader = setInterval(() => {
+      const n = this.state.load + 1;
+      if (n >= dur) { clearInterval(this.loader); this.setState({ phase: 'ready', load: dur }); }
+      else this.setState({ load: n });
+    }, 100);
+  };
+  fmt(sec) {
+    const a = Math.abs(sec), h = Math.floor(a / 3600), m = Math.floor(a % 3600 / 60), s = a % 60, p = x => String(x).padStart(2, '0');
+    return h ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+  }
+  hm(min) { const h = Math.floor(min / 60), m = min % 60; return h ? `${h} h ${m} m` : `${m} m`; }
+  profile() {
+    const pts = [0, .08, .2, .28, .45, .52, .7, .88, 1, .92, .75, .6, .48, .3, .18, .05];
+    const xy = pts.map((v, i) => [i / (pts.length - 1) * 400, 84 - v * 72]);
+    const line = xy.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    return { line, area: line + ' L400 90 L0 90 Z' };
+  }
+  renderVals() {
+    const s = this.state, P = this.profile();
+    const order = [['plan', 'Plan'], ['trail', 'On trail'], ['summary', 'Summary']];
+    const steps = order.map(([id, label], i) => ({
+      num: '0' + (i + 1), label, go: () => this.go(id),
+      bg: s.screen === id ? '#FBFAF5' : 'transparent', fg: s.screen === id ? '#1E2620' : '#5E665F',
+      shadow: s.screen === id ? '0 1px 3px rgba(30,38,32,.12)' : 'none'
+    }));
+    const hints = { T1: 'Hiking · well-marked path', T2: 'Mountain hiking · some steep sections', T3: 'Demanding mountain hiking · exposed spots, sure footing needed', T4: 'Alpine hiking · hands sometimes needed', T5: 'Demanding alpine · scrambling, basic climbing', T6: 'Difficult alpine · climbing, no marked trail' };
+    const grades = Object.keys(hints).map(id => ({
+      id, hint: hints[id], pick: () => this.setState({ grade: id }),
+      bg: s.grade === id ? '#1F4D35' : '#FBFAF5', fg: s.grade === id ? '#fff' : '#1E2620', border: s.grade === id ? '#1F4D35' : '#DCD7C9'
+    }));
+    const dur = (this.props.predictSeconds ?? 6) * 10, frac = s.load / dur;
+    const stageTexts = ['Reading route and elevation', 'Modeling your pace on this grade', 'Checking daylight and forecast'];
+    const stageIdx = Math.min(2, Math.floor(frac * 3));
+    const loadSteps = stageTexts.map((text, i) => ({ text, mark: i < stageIdx ? '✓' : i === stageIdx ? '•' : '', color: i <= stageIdx ? '#1E2620' : '#A3A89F' }));
+    const canPredict = s.routeName.trim() && s.fileName && s.email.includes('@');
+
+    const total = 4 * 3600 + 10 * 60;
+    const rem = s.remaining ?? this.initRemaining();
+    const level = rem < 0 ? 'red' : rem < 900 ? 'amber' : 'ok';
+    const C = { ok: '#1F4D35', amber: '#B7791F', red: '#B03A2E' }[level];
+    const elapsedMin = Math.round((total - rem) / 60);
+    const expectedMin = elapsedMin + (level === 'ok' ? 4 : level === 'amber' ? -9 : -21);
+    const delta = expectedMin - elapsedMin;
+    const audioFmt = `${Math.floor(s.audio / 60)}:${String(s.audio % 60).padStart(2, '0')}`;
+
+    return {
+      steps, grades, grade: s.grade, gradeHint: s.grade + ' · ' + hints[s.grade],
+      isPlan: s.screen === 'plan', isTrail: s.screen === 'trail', isSummary: s.screen === 'summary',
+      routeName: s.routeName, onRouteName: e => this.setState({ routeName: e.target.value }),
+      routeLabel: s.routeName.trim() || 'Untitled route',
+      hasFile: !!s.fileName, noFile: !s.fileName, fileName: s.fileName, fileRef: this.fileRef,
+      pickFile: () => this.fileRef.current && this.fileRef.current.click(),
+      onFile: e => { const f = e.target.files[0]; if (f) this.setState({ fileName: f.name, phase: 'empty' }); },
+      clearFile: () => this.setState({ fileName: '', phase: 'empty' }),
+      startTime: s.startTime, onStart: e => this.setState({ startTime: e.target.value }),
+      email: s.email, onEmail: e => this.setState({ email: e.target.value }), emailLabel: s.email || 'your contact',
+      predict: this.predict, predictDisabled: !canPredict, predictOpacity: canPredict ? 1 : .45,
+      phaseEmpty: s.phase === 'empty', phaseLoading: s.phase === 'loading', phaseReady: s.phase === 'ready',
+      loadPct: Math.round(frac * 100) + '%', loadLeft: Math.max(1, Math.ceil(20 * (1 - frac))), loadStage: stageTexts[stageIdx] + '…', loadSteps,
+      profileLine: P.line, profileArea: P.area,
+      startHike: () => this.go('trail'),
+      toggleOffline: () => this.setState({ offline: !s.offline }),
+      netLabel: s.offline ? 'Offline · everything cached at 7:52 AM' : 'Online · synced just now',
+      netBg: s.offline ? '#ECE8DC' : '#E3EDE4', netFg: s.offline ? '#3E463F' : '#1F4D35', netBorder: s.offline ? '#D8D3C4' : '#CBDCCD', netDot: s.offline ? '#8A8F86' : '#2F8A55',
+      heroBg: level === 'ok' ? '#FBFAF5' : level === 'amber' ? '#FBF3E2' : '#FAE9E6',
+      heroBorder: level === 'ok' ? '#E2DDCF' : level === 'amber' ? '#EFD9A8' : '#EDC3BC',
+      heroColor: C, countColor: level === 'ok' ? '#1E2620' : C, ringTrack: level === 'ok' ? '#E9E5D8' : level === 'amber' ? '#F1E2C0' : '#F1D2CC',
+      ringOffset: (791.7 * (1 - Math.max(0, Math.min(1, rem / total)))).toFixed(1),
+      statusLabel: level === 'ok' ? "You're on track" : level === 'amber' ? 'Turn back soon' : 'Overdue — turn back now',
+      statusAnim: level === 'red' ? 'ta-pulse 1.4s ease-in-out infinite' : 'none',
+      countText: (rem < 0 ? '+' : '') + this.fmt(rem), countCaption: rem < 0 ? 'past turn-back time' : 'until turn-back time',
+      outText: this.hm(elapsedMin), expectedText: this.hm(expectedMin),
+      deltaText: delta === 0 ? 'on pace' : (delta > 0 ? delta + ' m ahead' : -delta + ' m behind'),
+      deltaColor: delta >= 0 ? '#1F4D35' : C,
+      togglePlay: () => this.setState({ playing: !s.playing, audio: s.audio >= 138 ? 0 : s.audio }),
+      playIcon: s.playing ? '❚❚' : '▶', audioTime: audioFmt, audioPct: (s.audio / 138 * 100).toFixed(1) + '%',
+      imOut: () => this.go('summary'),
+      planAnother: () => { this.setState({ phase: 'empty', routeName: '', fileName: '', playing: false, audio: 0 }); this.go('plan'); }
+    };
+  }
+}
+</script>
+</body>
+</html>

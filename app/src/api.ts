@@ -59,11 +59,12 @@ export const api = {
       headers: { "Content-Type": "application/gpx+xml" },
     }).then((r) => j<Features & { lat: number | null; lon: number | null }>(r)),
 
-  predict: (f: Features) =>
+  predict: (f: Features, signal?: AbortSignal) =>
     fetch(`${BASE}/predict`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(f),
+      signal,
     }).then((r) => j<Prediction>(r)),
 
   createTrip: (payload: Features & { name: string; contact_email: string }) =>
@@ -88,6 +89,16 @@ export const api = {
 
   briefingAudio: (id: number) => fetch(`${BASE}/trips/${id}/briefing/audio`, { method: "POST" }),
 };
+
+/** Parse elevation samples out of a GPX file, in track order. Used for the
+ *  elevation profile card and computed in the browser — the file never leaves
+ *  the machine. */
+export function gpxElevations(text: string): number[] {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  return Array.from(doc.getElementsByTagName("ele"))
+    .map((e) => parseFloat(e.textContent ?? ""))
+    .filter((n) => Number.isFinite(n));
+}
 
 /** Open-Meteo is called straight from the browser (it allows CORS).
  *  Sunset is location-local wall clock; we correct it to a true instant. */
