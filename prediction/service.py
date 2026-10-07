@@ -21,6 +21,7 @@ import os
 import pathlib
 import re
 import sqlite3
+import subprocess
 import threading
 import time
 from contextlib import asynccontextmanager, closing, suppress
@@ -31,8 +32,10 @@ os.environ.setdefault("TABPFN_ALLOW_CPU_LARGE_DATASET", "1")
 import numpy as np
 import pandas as pd
 import gpxpy
+import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 from tabpfn import TabPFNRegressor
 
@@ -59,6 +62,16 @@ _state: dict = {"reg": None, "model": "", "training_rows": 0, "personal_rows": 0
 # distribution it was trained on, and a fat-fingered checkout can't poison it.
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 CONTROL_CHARS = re.compile(r"[\r\n\x00-\x1f]")
+
+# --- the rest of the stack (all local, all optional at boot) ---
+TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+TEMPORAL_TASK_QUEUE = os.environ.get("TEMPORAL_TASK_QUEUE", "turnaround-trips")
+LATE_WINDOW_HOURS = float(os.environ.get("LATE_WINDOW_HOURS", "6"))
+GEMMA_BASE_URL = os.environ.get("GEMMA_BASE_URL", "http://127.0.0.1:11434/v1")
+GEMMA_MODEL = os.environ.get("GEMMA_MODEL", "gemma4:e4b")
+PIPER_BIN = os.environ.get("PIPER_BIN", str(ROOT / "tools" / "piper-bin" / "piper" / "piper.exe"))
+PIPER_VOICE = os.environ.get("PIPER_VOICE", str(ROOT / "tools" / "piper" / "voice" / "en_US-amy-medium.onnx"))
+BRIEFINGS_DIR = ROOT / "data" / "briefings"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trips(
@@ -176,7 +189,20 @@ async def lifespan(_: FastAPI):
         print(f"[turnaround] warm-up predict done in {time.time() - t0:.0f}s", flush=True)
     except Exception as e:
         print(f"[turnaround] warm-up skipped: {e}", flush=True)
+    # Temporal client for the safety timer (workflow starts + check-in signals)
+    try:
+        from temporalio.client import Client
+
+        _state["temporal"] = await Client.connect(TEMPORAL_ADDRESS)
+        print(f"[turnaround] Temporal connected at {TEMPORAL_ADDRESS}", flush=True)
+    except Exception as e:
+        _state["temporal"] = None
+        print(f"[turnaround] Temporal unavailable ({e}) — trips work, timers don't", flush=True)
     yield
+    client = _state.get("temporal")
+    if client is not None:
+        with suppress(Exception):
+            await client.close()
 
 
 app = FastAPI(title="Turnaround prediction service", lifespan=lifespan)
@@ -317,8 +343,50 @@ def create_trip(t: TripCreate) -> dict:
         return {"id": cur.lastrowid, "status": "planned", **pred}
 
 
+def _iso_ms(ms: float) -> str:
+    return datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat(timespec="seconds")
+
+
+def _trip_details(row) -> dict:
+    """TripDetails for the TS tripWorkflow — key names must match exactly."""
+    if not row["started_at"]:
+        raise RuntimeError("trip has no start time")
+    if not row["contact_email"]:
+        raise RuntimeError("trip has no contact email — refusing to arm a timer that alerts nobody")
+    started_ms = datetime.fromisoformat(row["started_at"]).timestamp() * 1000
+    return {
+        "tripId": row["id"],
+        "hiker": "Your friend",
+        "routeName": row["name"],
+        "distanceKm": row["distance_km"],
+        "climbM": row["climb_m"],
+        "descentM": row["descent_m"],
+        "highestM": row["highest_m"],
+        "tGrade": row["t_grade"],
+        "startedAtIso": row["started_at"],
+        "expectedBackIso": _iso_ms(started_ms + row["expected_min"] * 60000),
+        "backByIso": _iso_ms(started_ms + row["p90_min"] * 60000),
+        "deadlineMs": int(row["p90_min"] * 60000),
+        "lateCheckinWindowMs": int(LATE_WINDOW_HOURS * 3600 * 1000),
+        "contactEmail": row["contact_email"],
+    }
+
+
+async def _start_timer(row) -> str:
+    client = _state.get("temporal")
+    if client is None:
+        raise RuntimeError("Temporal is unreachable")
+    await client.start_workflow(
+        "tripWorkflow",
+        _trip_details(row),
+        id=f"trip-{row['id']}",  # deterministic: one timer per trip
+        task_queue=TEMPORAL_TASK_QUEUE,
+    )
+    return "started"
+
+
 @app.post("/trips/{trip_id}/start")
-def start_trip(trip_id: int) -> dict:
+async def start_trip(trip_id: int) -> dict:
     with closing(db()) as conn:
         cur = conn.execute(
             "UPDATE trips SET status='active', started_at=? WHERE id=? AND status='planned'",
@@ -331,7 +399,14 @@ def start_trip(trip_id: int) -> dict:
             raise HTTPException(409, f"trip is {row['status']}, only planned trips can start")
         conn.commit()
         row = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
-    return dict(row)
+    # the trip is real; the timer is the promise. if Temporal is down, say so
+    # loudly instead of pretending the hiker is covered
+    timer = "started"
+    try:
+        await _start_timer(row)
+    except Exception as e:
+        timer = f"failed: {e}"
+    return {**dict(row), "safety_timer": timer}
 
 
 class Checkout(BaseModel):
@@ -339,7 +414,7 @@ class Checkout(BaseModel):
 
 
 @app.post("/trips/{trip_id}/checkout")
-def checkout(trip_id: int, c: Checkout) -> dict:
+async def checkout(trip_id: int, c: Checkout) -> dict:
     with closing(db()) as conn:
         # conditional transition: a double-clicked button can't double-insert
         # the hike into the training set, and the whole thing stays atomic
@@ -363,8 +438,12 @@ def checkout(trip_id: int, c: Checkout) -> dict:
         )
         conn.commit()
         row = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
-    # the checked-in hike is now a training row — refit in the background so the
-    # next prediction is a little more personal
+    # tell the safety timer "I'm out" — it may already be gone (escalated);
+    # the recorded time above is what feeds the model either way
+    client = _state.get("temporal")
+    if client is not None:
+        with suppress(Exception):
+            await client.get_workflow_handle(f"trip-{trip_id}").signal("trip.checkedIn")
     _fit_needed.set()
     threading.Thread(target=fit_model, daemon=True).start()
     return dict(row)
@@ -375,6 +454,65 @@ def list_trips() -> list[dict]:
     with closing(db()) as conn:
         rows = conn.execute("SELECT * FROM trips ORDER BY id DESC").fetchall()
     return [dict(r) for r in rows]
+
+
+@app.post("/trips/{trip_id}/briefing")
+def briefing_text(trip_id: int) -> dict:
+    """Gemma 4 turns the trip's numbers into a spoken-style briefing."""
+    with closing(db()) as conn:
+        trip = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
+    if trip is None:
+        raise HTTPException(404, "trip not found")
+    prompt = (
+        "Write a short spoken briefing for a hiker about to start this trip. "
+        "Sound like a friend who hikes, not a robot. 4 to 6 short sentences. "
+        "No lists, no markdown, no emoji. Mention the turn-back rule. Facts: "
+        f"Route: {trip['distance_km']} km with {trip['climb_m']} m of climbing, "
+        f"high point {trip['highest_m']} m, grade T{trip['t_grade']}. "
+        f"Expected moving time {round(trip['expected_min'])} minutes; the hard "
+        f"turn-back rule is {round(trip['p90_min'])} minutes after they start — "
+        f"if they are not nearly back by then, they turn around."
+    )
+    r = requests.post(
+        f"{GEMMA_BASE_URL}/chat/completions",
+        json={
+            "model": GEMMA_MODEL,
+            "stream": False,
+            "temperature": 0.7,
+            "messages": [
+                {"role": "system", "content": "You are Turnaround, a hiking companion. Warm, practical, brief."},
+                {"role": "user", "content": prompt},
+            ],
+        },
+        timeout=180,
+    )
+    if r.status_code != 200:
+        raise HTTPException(502, f"gemma failed: {r.status_code} {r.text[:200]}")
+    content = (r.json().get("choices") or [{}])[0].get("message", {}).get("content")
+    if not content or not str(content).strip():
+        raise HTTPException(502, "gemma returned no content")
+    text = str(content).strip()
+    _state.setdefault("briefings", {})[trip_id] = text
+    return {"briefing": text}
+
+
+@app.post("/trips/{trip_id}/briefing/audio")
+def briefing_audio(trip_id: int):
+    """Piper renders the trip's briefing to a wav the hiker plays offline."""
+    text = _state.get("briefings", {}).get(trip_id)
+    if not text:
+        raise HTTPException(409, "generate the briefing text first (POST /trips/{id}/briefing)")
+    BRIEFINGS_DIR.mkdir(parents=True, exist_ok=True)
+    wav = BRIEFINGS_DIR / f"briefing-trip{trip_id}.wav"
+    proc = subprocess.run(
+        [PIPER_BIN, "-m", PIPER_VOICE, "-f", str(wav)],
+        input=text.encode("utf-8"),
+        capture_output=True,
+        timeout=120,
+    )
+    if proc.returncode != 0:
+        raise HTTPException(502, f"piper failed: {proc.stderr.decode(errors='replace')[:200]}")
+    return FileResponse(wav, media_type="audio/wav", filename=wav.name)
 
 
 if __name__ == "__main__":

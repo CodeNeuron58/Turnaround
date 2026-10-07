@@ -31,10 +31,14 @@ npm run worker          # in one terminal
 
 ## Run the flow
 
+The **service starts and signals timers itself**: `POST /trips/{id}/start` arms
+`trip-<id>` and `POST /trips/{id}/checkout` sends the check-in — that's what the
+app's buttons call. The CLI still works for tests:
+
 ```bash
 # plan + start a trip in the prediction service first (it must be "active"), then:
 npx tsx src/cli.ts start --trip 2 [--deadline 30]      # 30s override for tests
-npx tsx src/cli.ts checkin --workflow trip-2-<ts>      # "I'm out"
+npx tsx src/cli.ts checkin --workflow trip-2           # "I'm out"
 ```
 
 ## Proof — all three scenarios (evidence in `docs/evidence/`)

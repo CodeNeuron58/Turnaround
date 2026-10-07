@@ -23,6 +23,7 @@ data/raw/
 data/processed/
 data/models/
 data/*.db
+data/briefings/
 agent/output/
 workflows/outbox/
 tools/*

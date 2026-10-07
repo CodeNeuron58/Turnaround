@@ -10,3 +10,6 @@ fastapi
 uvicorn[standard]
 requests
 python-dotenv
+
+# safety timer client (workflows execute in the TS worker)
+temporalio
