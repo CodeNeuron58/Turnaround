@@ -2,19 +2,22 @@
 
 The Temporal safety timer — the promise the app makes to every hiker:
 
-> "You started your trip. I will wait for your check-in until the cautious
-> estimate says you should be back. If that moment passes, I will tell your
-> person where you are, what your plan was, and when you were expected back —
-> no matter what happens to this server."
+> "You started your trip. I will wait for your check-in until well past the
+> moment you should be back. If that passes, I will tell your person where you
+> set off, what your plan was, and when you were expected back — no matter what
+> happens to this server. And if you check in after all, I'll tell them you're safe."
 
 ## Pieces
 
 - `src/workflows.ts` — the trip workflow (deterministic: check-in signal vs a
-  deadline timer; deadline = the P90 estimate, overridable for tests)
-- `src/activities.ts` — the escalation email. **No SMTP account yet**, so
-  delivery writes a full email to `outbox/` (swap to nodemailer later without
-  touching the workflow). Simulated outage for the retry test: `FAIL_FIRST_N=2`
-  in the worker's environment.
+  deadline timer; the service sets the deadline to the trip's alert moment —
+  P95 + planned breaks + 30 min grace — overridable for drills and tests). A
+  check-in after the alert sends the contact an all-clear.
+- `src/activities.ts` — the alert and all-clear emails. **No mail provider wired
+  yet**, so `deliver()` writes each email to `outbox/`; a provider swap replaces
+  that one function. Alerts carry the hiker's name, trailhead and route-centre
+  map links, sunset and rain; drill emails are marked `[DRILL]`. Simulated
+  outage for the retry test: `FAIL_FIRST_N=2` in the worker's environment.
 - `src/worker.ts` — the worker (kill it mid-trip; Temporal replays the workflow)
 - `src/cli.ts` — start a trip's timer (pulls the trip from the prediction
   service) and send check-ins
@@ -24,7 +27,8 @@ The Temporal safety timer — the promise the app makes to every hiker:
 ## Local setup (free, no account)
 
 ```bash
-tools/temporal/temporal.exe server start-dev --port 7233   # one-time binary, see cleanup.md
+tools/temporal/temporal.exe server start-dev --port 7233 --db-filename tools/temporal/turnaround.db
+# binary: tools/README.md · --db-filename keeps timers across a server restart
 cd workflows
 npm run worker          # in one terminal
 ```
@@ -32,8 +36,11 @@ npm run worker          # in one terminal
 ## Run the flow
 
 The **service starts and signals timers itself**: `POST /trips/{id}/start` arms
-`trip-<id>` and `POST /trips/{id}/checkout` sends the check-in — that's what the
-app's buttons call. The CLI still works for tests:
+`trip-<id>` (`?alert_in_sec=120` for a drill), `POST /trips/{id}/arm` retries a
+timer that failed to arm, and `POST /trips/{id}/checkout` sends the check-in —
+idempotently, so a phone retrying a queued check-in is safe. The response says
+whether the timer got it (`checkin_signal`) and whether the alert had already
+gone out (`alert_fired`). The CLI still works for tests:
 
 ```bash
 # plan + start a trip in the prediction service first (it must be "active"), then:

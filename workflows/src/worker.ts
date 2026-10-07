@@ -5,6 +5,13 @@ import { Worker } from "@temporalio/worker";
 import { fileURLToPath } from "node:url";
 import * as activities from "./activities";
 
+try {
+  // the repo-root .env, whatever directory the worker was started from
+  process.loadEnvFile(fileURLToPath(new URL("../../.env", import.meta.url)));
+} catch {
+  /* no .env, use defaults */
+}
+
 async function run(): Promise<void> {
   const worker = await Worker.create({
     taskQueue: "turnaround-trips",

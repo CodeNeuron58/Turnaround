@@ -2,11 +2,12 @@
 //   npx tsx src/cli.ts start --trip 1 [--deadline 30] [--late-window 3600] [--contact <email>] [--hiker "Name"]
 //   npx tsx src/cli.ts checkin --workflow trip-1
 //
-// `start` pulls the trip (features, estimates, contact) from the prediction
-// service and hands it to Temporal. The deadline is derived from the P90
-// estimate unless overridden for testing. The workflow id is deterministic
-// (trip-<id>) so a duplicate start can never create a second timer — Temporal
-// enforces one open execution per id.
+// `start` pulls the trip (features, timeline, contact) from the prediction
+// service and hands it to Temporal. The deadline is the trip's alert moment
+// (P95 + breaks + grace) unless overridden for testing. The workflow id is
+// deterministic (trip-<id>) so a duplicate start can never create a second
+// timer — Temporal enforces one open execution per id. The service arms timers
+// itself on POST /trips/{id}/start; this CLI is for tests.
 
 import { Client, WorkflowExecutionAlreadyStartedError, WorkflowNotFoundError } from "@temporalio/client";
 import { checkedInSignal, tripWorkflow, type TripDetails } from "./workflows";
@@ -22,11 +23,21 @@ interface TripRow {
   descent_m: number;
   highest_m: number;
   t_grade: number;
-  expected_min: number;
-  p90_min: number;
   started_at: string | null;
   status: string;
   contact_email: string | null;
+  hiker_name: string | null;
+  breaks_min: number;
+  lat: number | null;
+  lon: number | null;
+  start_lat: number | null;
+  start_lon: number | null;
+  sunset_at: string | null;
+  rain_pct: number | null;
+  // timeline, present once the trip has started
+  expected_back_at?: string;
+  back_by_at?: string;
+  alert_at?: string;
 }
 
 const argv = process.argv.slice(2);
@@ -50,20 +61,19 @@ async function main(): Promise<void> {
     const tripId = Number(arg("trip"));
     if (!tripId) throw new Error("--trip <id> is required");
 
-    let trips: TripRow[];
+    let r: Response;
     try {
-      const r = await fetch(`${SERVICE}/trips`, { signal: AbortSignal.timeout(5000) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      trips = await r.json();
+      r = await fetch(`${SERVICE}/trips/${tripId}`, { signal: AbortSignal.timeout(5000) });
     } catch (e) {
       throw new Error(`prediction service unreachable at ${SERVICE} — start it first (${e})`);
     }
-    if (!Array.isArray(trips)) throw new Error(`unexpected response from ${SERVICE}/trips`);
-
-    const trip = trips.find((t) => t.id === tripId);
-    if (!trip) throw new Error(`trip ${tripId} not found in the prediction service`);
+    if (r.status === 404) throw new Error(`trip ${tripId} not found in the prediction service`);
+    if (!r.ok) throw new Error(`prediction service: HTTP ${r.status}`);
+    const trip: TripRow = await r.json();
     if (trip.status !== "active") throw new Error(`trip ${tripId} is not active (status: ${trip.status})`);
-    if (!trip.started_at) throw new Error(`trip ${tripId} has no start time`);
+    if (!trip.started_at || !trip.back_by_at || !trip.alert_at || !trip.expected_back_at) {
+      throw new Error(`trip ${tripId} has no start time`);
+    }
 
     // never alert a fictional address: no contact, no timer
     const contactEmail = trip.contact_email ?? arg("contact");
@@ -73,17 +83,13 @@ async function main(): Promise<void> {
       );
     }
 
-    const startedMs = new Date(trip.started_at).getTime();
-    const expectedBackIso = new Date(startedMs + trip.expected_min * 60_000).toISOString();
-    const backByIso = new Date(startedMs + trip.p90_min * 60_000).toISOString();
-
     const overrideSec = arg("deadline") ? Number(arg("deadline")) : undefined;
     if (overrideSec !== undefined && (!Number.isFinite(overrideSec) || overrideSec <= 0)) {
       throw new Error("--deadline must be a positive number of seconds");
     }
     const deadlineMs = overrideSec
       ? overrideSec * 1000
-      : Math.max(0, new Date(backByIso).getTime() - Date.now());
+      : Math.max(1000, new Date(trip.alert_at).getTime() - Date.now());
 
     const lateWindowSec = arg("late-window") ? Number(arg("late-window")) : 6 * 3600;
     if (!Number.isFinite(lateWindowSec) || lateWindowSec < 0) {
@@ -92,7 +98,7 @@ async function main(): Promise<void> {
 
     const details: TripDetails = {
       tripId,
-      hiker: arg("hiker") ?? "Your friend",
+      hiker: arg("hiker") ?? trip.hiker_name ?? "Your friend",
       routeName: trip.name,
       distanceKm: trip.distance_km,
       climbM: trip.climb_m,
@@ -100,11 +106,16 @@ async function main(): Promise<void> {
       highestM: trip.highest_m,
       tGrade: trip.t_grade,
       startedAtIso: trip.started_at,
-      expectedBackIso,
-      backByIso,
+      expectedBackIso: trip.expected_back_at,
+      backByIso: trip.back_by_at,
       deadlineMs,
       lateCheckinWindowMs: lateWindowSec * 1000,
       contactEmail,
+      breaksMin: trip.breaks_min,
+      trailhead: trip.start_lat != null && trip.start_lon != null ? { lat: trip.start_lat, lon: trip.start_lon } : null,
+      routeCenter: trip.lat != null && trip.lon != null ? { lat: trip.lat, lon: trip.lon } : null,
+      sunsetIso: trip.sunset_at,
+      rainChancePct: trip.rain_pct,
     };
 
     const workflowId = `trip-${tripId}`;
