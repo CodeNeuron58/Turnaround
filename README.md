@@ -98,6 +98,7 @@ Everything runs on one machine — no cloud account needed. First-time setup:
 4. Piper + Temporal binaries: one-time fetch commands in [tools/README.md](tools/README.md)
 5. Training data: download the dataset per [data/DATA_NOTES.md](data/DATA_NOTES.md), then `python prediction/build_dataset.py`
 6. Optional: your own past hikes → `data/raw/gpx/`, then `.venv\Scripts\python.exe prediction\import_hikes.py --grade 3` (one run per grade) to seed your pace factor
+7. Alert emails: a free [Brevo](https://www.brevo.com) account — put `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in `.env` (see `.env.example`), then check with `npm run test-email -w @turnaround/workflows -- you@example.com`. Without it, alerts are only written to `workflows/outbox/`.
 
 Then one process per terminal:
 

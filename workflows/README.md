@@ -13,11 +13,14 @@ The Temporal safety timer — the promise the app makes to every hiker:
   deadline timer; the service sets the deadline to the trip's alert moment —
   P95 + planned breaks + 30 min grace — overridable for drills and tests). A
   check-in after the alert sends the contact an all-clear.
-- `src/activities.ts` — the alert and all-clear emails. **No mail provider wired
-  yet**, so `deliver()` writes each email to `outbox/`; a provider swap replaces
-  that one function. Alerts carry the hiker's name, trailhead and route-centre
-  map links, sunset and rain; drill emails are marked `[DRILL]`. Simulated
-  outage for the retry test: `FAIL_FIRST_N=2` in the worker's environment.
+- `src/activities.ts` — the alert and all-clear emails. Alerts carry the hiker's
+  name, trailhead and route-centre map links, sunset and rain; drill emails are
+  marked `[DRILL]`. Simulated outage for the retry test: `FAIL_FIRST_N=2` in the
+  worker's environment.
+- `src/mail.ts` — delivery: always a copy in `outbox/`, and through
+  [Brevo](https://www.brevo.com) when `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`
+  are set in the root `.env`. A failed send throws, so Temporal retries it.
+  Check the setup on its own: `npm run test-email -w @turnaround/workflows -- you@example.com`
 - `src/worker.ts` — the worker (kill it mid-trip; Temporal replays the workflow)
 - `src/cli.ts` — start a trip's timer (pulls the trip from the prediction
   service) and send check-ins

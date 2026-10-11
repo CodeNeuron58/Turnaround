@@ -1,25 +1,13 @@
 // Activities — the I/O side of the safety timer. Runs in the worker process,
 // outside the workflow sandbox, so real clocks and files are fine here.
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { activityInfo } from "@temporalio/activity";
+import { deliver, type Email } from "./mail";
 import type { GeoPoint, TripDetails } from "./workflows";
-
-// anchored to this file, not the worker's cwd; read per call because the
-// worker loads .env after this module's imports have run
-const outboxDir = () => process.env.OUTBOX_DIR ?? fileURLToPath(new URL("../outbox", import.meta.url));
 
 // per-workflow failure budget for the retry test — process-global counters
 // would race between concurrent escalations
 const failBudget = new Map<string, number>();
-
-interface Email {
-  to: string;
-  subject: string;
-  text: string;
-}
 
 function fmtLocal(iso: string): string {
   const d = new Date(iso);
@@ -85,18 +73,6 @@ function renderAllClear(trip: TripDetails): Email {
     subject: `${trip.drill ? "[DRILL] " : ""}Turnaround — ${trip.hiker} is safe`,
     text: lines.join("\n"),
   };
-}
-
-/** The one place mail leaves the worker. While no mail provider is wired up,
- *  the message is written to the local outbox — a provider swap replaces this
- *  function only. The file name comes from the execution, not the clock, so a
- *  redelivered activity attempt overwrites instead of duplicating. */
-async function deliver(email: Email, fileStem: string): Promise<string> {
-  const dir = outboxDir();
-  mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `${fileStem}.txt`);
-  writeFileSync(file, [`TO: ${email.to}`, `SUBJECT: ${email.subject}`, "", email.text].join("\n"), "utf-8");
-  return `outbox:${file}`;
 }
 
 function workflowIdOf(trip: TripDetails): string {
