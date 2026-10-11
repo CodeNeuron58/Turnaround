@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { after, api, fetchSunset, gpxElevations, type Features, type Prediction, type Route, type Sunset, type Trip } from "../api";
+import { after, api, fetchSunset, gpxElevations, placeLabel, searchPlaces, type Features, type Place, type Prediction, type Route, type Sunset, type Trip } from "../api";
 import { prepareBriefing } from "../briefing";
 import { fmtHM, fmtMargin, fmtNum, fmtTimeOfDay, startLabel } from "../format";
 import { saved } from "../store";
@@ -15,6 +15,9 @@ const GRADE_HINTS: Record<number, string> = {
 };
 
 type Phase = "form" | "loading" | "ready";
+/** Most people don't have a GPX file, so the default is three numbers any
+ *  trail page lists, plus a place search for the trailhead. */
+type RouteMode = "numbers" | "gpx";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const NO_SUNSET: Sunset = { ok: false, sunset: null, sunsetEpochMs: null, rainChancePct: null };
@@ -46,6 +49,13 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
   const [hiker, setHiker] = useState(() => saved.hikerName());
   const [contact, setContact] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<RouteMode>("numbers");
+  const [distance, setDistance] = useState("");
+  const [gain, setGain] = useState("");
+  const [high, setHigh] = useState("");
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [place, setPlace] = useState<Place | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [sunset, setSunset] = useState<Sunset | null>(null);
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -61,13 +71,39 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
 
   // elevation profile comes straight from the GPX, parsed in the browser
   useEffect(() => {
-    if (phase === "ready" && file) {
+    if (phase === "ready" && mode === "gpx" && file) {
       file
         .text()
         .then((t) => setElevs(gpxElevations(t)))
         .catch(() => setElevs(null));
     }
-  }, [phase, file]);
+  }, [phase, file, mode]);
+
+  // trailhead search, debounced; a chosen place stops further searching
+  useEffect(() => {
+    const q = placeQuery.trim();
+    if (place || q.length < 2) {
+      setPlaces([]);
+      return;
+    }
+    const ac = new AbortController();
+    const t = setTimeout(() => {
+      searchPlaces(q, ac.signal).then(setPlaces).catch(() => {});
+    }, 350);
+    return () => {
+      clearTimeout(t);
+      ac.abort();
+    };
+  }, [placeQuery, place]);
+
+  const distNum = Number(distance);
+  const gainNum = Number(gain);
+  // the high point is rarely on trail pages; trailhead height + gain is a fair estimate
+  const highEstimate = place?.elevation != null && gain.trim() !== "" && Number.isFinite(gainNum) ? Math.round(place.elevation + gainNum) : null;
+  const highNum = high.trim() !== "" ? Number(high) : highEstimate ?? NaN;
+  const numbersOk =
+    distNum > 0 && distNum <= 50 && gain.trim() !== "" && gainNum >= 0 && gainNum <= 4500 && highNum >= 0 && highNum <= 5500;
+  const routeReady = mode === "gpx" ? !!file : numbersOk;
 
   function pickFile(f: File | null) {
     setFile(f);
@@ -78,7 +114,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
     setError(null);
     setPhase("loading");
     setLoadPct(6);
-    setStage("Reading your GPX — distance, climbing, high point…");
+    setStage("Reading your route — distance, climbing, high point…");
     const ac = new AbortController();
     abortRef.current = ac;
     const t0 = Date.now();
@@ -86,10 +122,23 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
     const prog = setInterval(() => {
       setLoadPct(Math.min(92, Math.round(((Date.now() - t0) / estimate) * 100)));
       const s = (Date.now() - t0) / 1000;
-      setStage(s < 8 ? "Reading your GPX — distance, climbing, high point…" : "Asking TabPFN for your time, and the sky for your sunset…");
+      setStage(s < 8 ? "Reading your route — distance, climbing, high point…" : "Asking TabPFN for your time, and the sky for your sunset…");
     }, 500);
     try {
-      const route = await api.analyzeRoute(file!, grade);
+      const route: Route =
+        mode === "gpx"
+          ? await api.analyzeRoute(file!, grade)
+          : {
+              distance_km: distNum,
+              climb_m: gainNum,
+              descent_m: gainNum, // you finish where you start
+              highest_m: highNum,
+              t_grade: grade,
+              lat: place?.lat ?? null,
+              lon: place?.lon ?? null,
+              start_lat: place?.lat ?? null,
+              start_lon: place?.lon ?? null,
+            };
       setLoadPct(38);
       setStage("Asking TabPFN for your time, and the sky for your sunset…");
       const prediction = await api.predict(features(route, grade), ac.signal);
@@ -111,6 +160,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
         sunset_at: sun.sunsetEpochMs != null ? new Date(sun.sunsetEpochMs).toISOString() : null,
         rain_pct: sun.rainChancePct,
         planned_start: new Date(start).toISOString(),
+        trailhead_name: mode === "numbers" && place ? placeLabel(place) : null,
       });
       saved.setHikerName(hiker.trim());
       // write and voice the briefing now, while there's signal — it's on the
@@ -142,7 +192,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
     setError(null);
     try {
       const t = await api.startTrip(trip.id, drillSec);
-      onPlanned({ route, prediction, sunset: sunset ?? NO_SUNSET, trip: t, file: file ?? undefined });
+      onPlanned({ route, prediction, sunset: sunset ?? NO_SUNSET, trip: t, file: mode === "gpx" ? file ?? undefined : undefined });
     } catch (e) {
       setStarting(false);
       setError(`Couldn't start the trip: ${e instanceof Error ? e.message : e}`);
@@ -265,14 +315,16 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
 
             <div className="elev-card">
               <div className="elev-label">Elevation</div>
-              <svg viewBox="0 0 400 90" preserveAspectRatio="none">
-                {profile && (
-                  <>
-                    <path d={profile.area} fill="var(--green-soft)" />
-                    <path d={profile.line} fill="none" stroke="var(--green)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                  </>
-                )}
-              </svg>
+              {profile ? (
+                <svg viewBox="0 0 400 90" preserveAspectRatio="none">
+                  <path d={profile.area} fill="var(--green-soft)" />
+                  <path d={profile.line} fill="none" stroke="var(--green)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                </svg>
+              ) : (
+                <div className="elev-empty">
+                  {mode === "gpx" ? "Reading the profile…" : "Planned from the numbers you entered. Add a GPX file next time to see the profile."}
+                </div>
+              )}
               <div className="elev-stats">
                 <div>
                   <div className="k">Distance</div>
@@ -335,6 +387,66 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ridge Trail" maxLength={120} />
             </label>
 
+            {mode === "numbers" ? (
+              <>
+                <div className="num-grid">
+                  <label className="field">
+                    <span>Distance (km)</span>
+                    <input className="input" type="number" inputMode="decimal" min={0.5} max={50} step={0.1} value={distance} onChange={(e) => setDistance(e.target.value)} placeholder="e.g. 9.5" />
+                  </label>
+                  <label className="field">
+                    <span>Elevation gain (m)</span>
+                    <input className="input" type="number" inputMode="numeric" min={0} max={4500} step={10} value={gain} onChange={(e) => setGain(e.target.value)} placeholder="e.g. 750" />
+                  </label>
+                  <label className="field">
+                    <span>Highest point (m)</span>
+                    <input className="input" type="number" inputMode="numeric" min={0} max={5500} step={10} value={high} onChange={(e) => setHigh(e.target.value)} placeholder={highEstimate != null ? `≈ ${highEstimate}` : "e.g. 2100"} />
+                  </label>
+                </div>
+                <span className="field-hint">
+                  Any trail app, guidebook or signboard lists these. Assumes you finish where you start
+                  {highEstimate != null && high.trim() === "" ? `; highest point estimated as trailhead + gain (${highEstimate} m)` : ""}.
+                </span>
+                <div className="field place-field">
+                  <span>Trailhead or nearest town</span>
+                  <input
+                    className="input"
+                    value={placeQuery}
+                    onChange={(e) => {
+                      setPlaceQuery(e.target.value);
+                      setPlace(null);
+                    }}
+                    placeholder="e.g. McLeod Ganj"
+                    autoComplete="off"
+                  />
+                  {places.length > 0 && (
+                    <ul className="place-list" role="listbox">
+                      {places.map((p) => (
+                        <li key={`${p.lat},${p.lon}`}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlace(p);
+                              setPlaceQuery(placeLabel(p));
+                            }}
+                          >
+                            <strong>{p.name}</strong> <span>{p.detail}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <span className="field-hint">
+                    {place
+                      ? `Found: ${place.lat.toFixed(3)}, ${place.lon.toFixed(3)}${place.elevation != null ? ` · ${Math.round(place.elevation)} m` : ""} — used for sunset, rain and the map your contact gets.`
+                      : "Used for sunset, rain and the map your contact gets if you're overdue."}
+                  </span>
+                </div>
+                <button className="linklike" style={{ alignSelf: "flex-start" }} onClick={() => setMode("gpx")}>
+                  Have a GPX file? Upload it instead
+                </button>
+              </>
+            ) : (
             <div className="field">
               <span>GPX file</span>
               {file ? (
@@ -363,7 +475,11 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
                 style={{ display: "none" }}
                 onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
               />
+              <button className="linklike" style={{ alignSelf: "flex-start" }} onClick={() => setMode("numbers")}>
+                No GPX? Enter the numbers instead
+              </button>
             </div>
+            )}
 
             <div className="field">
               <span>Grade</span>
@@ -417,11 +533,11 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
 
         <div style={{ borderTop: "1px solid var(--line)", background: "var(--card-2)", padding: "clamp(18px,3vw,24px) clamp(20px,4vw,32px)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button className="btn-primary" disabled={!file || !name.trim() || !contact.trim()} onClick={planHike}>
+            <button className="btn-primary" disabled={!routeReady || !name.trim() || !contact.trim()} onClick={planHike}>
               Predict my time <span>→</span>
             </button>
             <span style={{ fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
-              runs on this machine — the GPX never leaves it
+              runs on this machine — only a place search and the weather lookup go online
             </span>
           </div>
         </div>

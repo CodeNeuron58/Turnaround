@@ -139,6 +139,7 @@ ADDED_COLUMNS = {
         "moving_min": "REAL",
         "briefing": "TEXT",
         "outcome": "TEXT",  # completed | turned_back — set at check-in
+        "trailhead_name": "TEXT",  # from the place search, when there's no GPX
     },
     "personal_hikes": {
         "crowd_min": "REAL",
@@ -417,6 +418,7 @@ class TripCreate(Features):
     sunset_at: str | None = None
     rain_pct: float | None = Field(None, ge=0, le=100)
     planned_start: str | None = None
+    trailhead_name: str | None = Field(None, max_length=160)
 
     @field_validator("name")
     @classmethod
@@ -426,7 +428,7 @@ class TripCreate(Features):
             raise ValueError("name is empty")
         return v
 
-    @field_validator("hiker_name")
+    @field_validator("hiker_name", "trailhead_name")
     @classmethod
     def _hiker(cls, v: str | None) -> str | None:
         return _clean_text(v)
@@ -459,6 +461,7 @@ def create_trip(t: TripCreate) -> dict:
         "breaks_min": t.breaks_min,
         "lat": t.lat, "lon": t.lon, "start_lat": t.start_lat, "start_lon": t.start_lon,
         "sunset_at": t.sunset_at, "rain_pct": t.rain_pct, "planned_start": t.planned_start,
+        "trailhead_name": t.trailhead_name,
         "created_at": now_iso(),
     }
     with closing(db()) as conn:
@@ -528,6 +531,7 @@ def _trip_details(row) -> dict:
         "contactEmail": row["contact_email"],
         "breaksMin": row["breaks_min"] or 0,
         "trailhead": _point(row["start_lat"], row["start_lon"]),
+        "trailheadName": row["trailhead_name"],
         "routeCenter": _point(row["lat"], row["lon"]),
         "sunsetIso": row["sunset_at"],
         "rainChancePct": row["rain_pct"],
@@ -721,6 +725,8 @@ def _briefing_facts(trip) -> str:
         facts.append("Sunset time unknown — tell them to aim to be back early rather than inventing a sunset.")
     if trip["rain_pct"] is not None:
         facts.append(f"Rain chance {round(trip['rain_pct'])}%.")
+    if trip["trailhead_name"]:
+        facts.append(f"They start from {trip['trailhead_name']}.")
     return " ".join(facts)
 
 

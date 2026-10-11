@@ -35,6 +35,7 @@ const trip: TripDetails = {
   contactEmail: sendTo ?? "friend@example.com",
   breaksMin: 30,
   trailhead: { lat: 27.788, lon: 85.365 },
+  trailheadName: "Budhanilkantha, Bagmati Province, Nepal",
   routeCenter: { lat: 27.7883, lon: 85.3822 },
   sunsetIso: iso(700),
   rainChancePct: 24,

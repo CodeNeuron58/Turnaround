@@ -58,7 +58,8 @@ def main() -> None:
         body = {**{k: route[k] for k in ("distance_km", "climb_m", "descent_m", "highest_m")}, "t_grade": 3,
                 "name": name, "contact_email": "friend@example.com", "hiker_name": "Biprayan", "breaks_min": 30,
                 "lat": route["lat"], "lon": route["lon"], "start_lat": route["start_lat"], "start_lon": route["start_lon"],
-                "sunset_at": (now + timedelta(hours=8)).isoformat(), "rain_pct": 20, "planned_start": now.isoformat()}
+                "sunset_at": (now + timedelta(hours=8)).isoformat(), "rain_pct": 20, "planned_start": now.isoformat(),
+                "trailhead_name": "Smoke Trailhead, Test Valley"}
         r = post("/trips", json=body)
         assert r.status_code == 201, r.text
         return route, r.json()
@@ -67,6 +68,7 @@ def main() -> None:
     pace0 = health["pace_factor"], health["pace_hikes"]
     route, t = plan("Smoke: on time")
     check(route["start_lat"] is not None, "route analysis returns the trailhead")
+    check(t["trailhead_name"] == "Smoke Trailhead, Test Valley", "trailhead name from the place search is stored")
     check(t["back_by_after_min"] == round(t["p90_min"] + 30, 1), "back-by = P90 + breaks")
     check(t["turn_around_after_min"] < t["back_by_after_min"] < t["alert_after_min"], "turn-around < back-by < alert")
     if args.briefing:

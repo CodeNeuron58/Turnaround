@@ -49,7 +49,8 @@ export interface TripDetails {
   lateCheckinWindowMs: number; // how long to stay open after an alert, for "I'm safe"
   contactEmail: string;
   breaksMin?: number;
-  trailhead?: GeoPoint | null; // first trackpoint — where they set off
+  trailhead?: GeoPoint | null; // first trackpoint, or the place they searched for
+  trailheadName?: string | null; // the place's name, when it came from the search
   routeCenter?: GeoPoint | null; // track midpoint
   sunsetIso?: string | null;
   rainChancePct?: number | null;

@@ -10,6 +10,7 @@ Built for the [Hacktoberfest Open-Source AI Challenge: Week 1](https://dev.to/ch
 
 ## What it does
 
+- **Plan from what you know** — distance, elevation gain and the trailhead (a place search), the three things every trail page lists. Have a GPX file? Upload it instead for exact numbers and the elevation profile.
 - **Predict** — TabPFN, in context on 7,186 real hikes from hikr.org, estimates your moving time as a range. A personal pace factor — your finished hikes against the crowd's estimate for the same routes — tunes it to you from your first check-in. Your planned breaks are added on top.
 - **Turn around** — three moments per trip: *turn around by* (not at the top or the far end by then? head back), *back by* (the 90th percentile — 9 in 10 hikes like yours finish sooner), checked against sunset.
 - **Brief** — Gemma 4, running on your own machine, turns the numbers into a plain-language briefing, spoken aloud by Kokoro (an open 82M-parameter voice model, on your machine) and saved to your phone before you leave.
@@ -17,7 +18,7 @@ Built for the [Hacktoberfest Open-Source AI Challenge: Week 1](https://dev.to/ch
 - **Watch** — a Temporal safety timer waits for your check-in. If you're still out well past your back-by time (the 95th percentile + breaks + 30 min), it emails your contact the plan, the route, and a map link to where you set off — even if the server restarts mid-trip. Check in late and they get an all-clear.
 
 <p align="center">
-  <img src="docs/screenshots/plan-phone.png" width="240" alt="Plan on a phone">
+  <img src="docs/screenshots/nogpx-form-phone.png" width="240" alt="Plan from three numbers and a trailhead search — no GPX needed">
   <img src="docs/screenshots/trail-phone.png" width="240" alt="On trail: countdown to turn-around, spoken briefing, armed safety timer">
   <img src="docs/screenshots/summary-phone.png" width="240" alt="Summary: predicted vs actual, nobody alerted, pace factor">
 </p>
@@ -26,6 +27,7 @@ Built for the [Hacktoberfest Open-Source AI Challenge: Week 1](https://dev.to/ch
 <details>
 <summary>More screens — no signal on the trail, a timer that failed to arm, turning back</summary>
 <p align="center">
+  <img src="docs/screenshots/plan-phone.png" width="240" alt="The plan on a phone: turn-around time, back by, sunset margin">
   <img src="docs/screenshots/checkin-offline-phone.png" width="240" alt="Check-in saved on the phone while offline">
   <img src="docs/screenshots/timer-not-armed-phone.png" width="240" alt="Red banner: safety timer NOT armed, with a retry">
   <img src="docs/screenshots/summary-turned-back-phone.png" width="240" alt="Turned back: good call, no pace-factor change">
@@ -114,8 +116,8 @@ Then one process per terminal:
 `--db-filename` keeps running timers on disk, so they survive a restart of the Temporal server
 itself (a Windows Update reboot included), not just of the worker.
 
-Plan a hike in the app — no GPX handy? [`data/sample-route.gpx`](data/sample-route.gpx) is a
-synthetic demo loop. Start arms the Temporal timer, the trail screen speaks the briefing, and
+Plan a hike in the app — type the distance, elevation gain and trailhead, or upload a GPX
+([`data/sample-route.gpx`](data/sample-route.gpx) is a synthetic demo loop). Start arms the Temporal timer, the trail screen speaks the briefing, and
 "Hike complete" — or "I turned back early" — checks you in. The agent CLI (`npx tsx agent/src/cli.ts --gpx data/sample-route.gpx --grade 3`)
 runs the same plan from a terminal; curl recipes live in [workflows/README.md](workflows/README.md).
 

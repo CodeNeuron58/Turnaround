@@ -112,7 +112,7 @@ export function renderAlert(trip: TripDetails): Email {
     ...(trip.sunsetIso ? ([["Sunset", esc(when(trip.sunsetIso))]] as Array<[string, string]>) : []),
     ...(trip.rainChancePct != null ? ([["Rain chance", `${Math.round(trip.rainChancePct)}%`]] as Array<[string, string]>) : []),
     ...(trip.trailhead
-      ? ([["Set off from", `${coords(trip.trailhead)} · <a href="${esc(osmUrl(trip.trailhead))}" style="color:${C.green};">OpenStreetMap</a>`]] as Array<[string, string]>)
+      ? ([["Set off from", `${trip.trailheadName ? `${esc(trip.trailheadName)}<br>` : ""}${coords(trip.trailhead)} · <a href="${esc(osmUrl(trip.trailhead))}" style="color:${C.green};">OpenStreetMap</a>`]] as Array<[string, string]>)
       : []),
     ...(trip.routeCenter
       ? ([["Middle of the route", `<a href="${esc(mapUrl(trip.routeCenter))}" style="color:${C.green};">${coords(trip.routeCenter)}</a>`]] as Array<[string, string]>)
@@ -143,7 +143,7 @@ ${facts(rows)}
     `You're ${trip.hiker}'s emergency contact in Turnaround. They started at ${when(trip.startedAtIso)}`,
     `and should have been back by ${when(trip.backByIso)}${overdue}.`,
     "",
-    ...(trip.trailhead ? [`  Set off from:      ${coords(trip.trailhead)} — ${mapUrl(trip.trailhead)}`] : []),
+    ...(trip.trailhead ? [`  Set off from:      ${trip.trailheadName ? `${trip.trailheadName}, ` : ""}${coords(trip.trailhead)} — ${mapUrl(trip.trailhead)}`] : []),
     ...(trip.routeCenter ? [`  Middle of route:   ${coords(trip.routeCenter)} — ${mapUrl(trip.routeCenter)}`] : []),
     `  Route:             ${trip.routeName} (grade T${trip.tGrade})`,
     `  Distance:          ${trip.distanceKm} km, ${Math.round(trip.climbM)} m of climbing, high point ${Math.round(trip.highestM)} m`,

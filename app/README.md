@@ -2,8 +2,10 @@
 
 The Turnaround web app — three screens, mobile-friendly, no UI framework:
 
-- **Plan** — upload a GPX route, pick the grade, set the start time, planned
-  breaks, your name and an emergency contact. The screen shows the moving-time
+- **Plan** — type the route's distance, elevation gain and trailhead (a place
+  search; the highest point is estimated if you leave it blank), or upload a
+  GPX instead. Pick the grade, set the start time, planned breaks, your name and
+  an emergency contact. The screen shows the moving-time
   band (tuned to your pace once you have history), the **turn-around** time,
   the **back-by** time (P90 + breaks), and the sunset margin. The briefing and
   its audio are prepared and saved to the phone right here, while there's signal.

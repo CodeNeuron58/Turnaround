@@ -83,6 +83,17 @@ export interface Sunset {
   rainChancePct: number | null;
 }
 
+/** A trailhead or town from the place search. */
+export interface Place {
+  name: string;
+  detail: string; // region, country
+  lat: number;
+  lon: number;
+  elevation: number | null; // metres, when the gazetteer knows it
+}
+
+export const placeLabel = (p: Place) => [p.name, p.detail].filter(Boolean).join(", ");
+
 export interface TripCreate extends Features {
   name: string;
   contact_email: string;
@@ -95,6 +106,7 @@ export interface TripCreate extends Features {
   sunset_at: string | null;
   rain_pct: number | null;
   planned_start: string | null;
+  trailhead_name: string | null;
 }
 
 /** An HTTP error from the service. Network failures stay plain Errors — the
@@ -174,6 +186,26 @@ export function gpxElevations(text: string): number[] {
   return Array.from(doc.getElementsByTagName("ele"))
     .map((e) => parseFloat(e.textContent ?? ""))
     .filter((n) => Number.isFinite(n));
+}
+
+/** Place search for people without a GPX: Open-Meteo's free geocoder (the
+ *  same service as the weather; no key, CORS-enabled). Only the typed name
+ *  leaves the machine. */
+export async function searchPlaces(q: string, signal?: AbortSignal): Promise<Place[]> {
+  const u = new URL("https://geocoding-api.open-meteo.com/v1/search");
+  u.searchParams.set("name", q);
+  u.searchParams.set("count", "6");
+  u.searchParams.set("language", "en");
+  u.searchParams.set("format", "json");
+  const d = await fetch(u, { signal }).then((r) => r.json());
+  type Hit = { name: string; admin1?: string; country?: string; latitude: number; longitude: number; elevation?: number };
+  return ((d.results ?? []) as Hit[]).map((r) => ({
+    name: r.name,
+    detail: [r.admin1, r.country].filter(Boolean).join(", "),
+    lat: r.latitude,
+    lon: r.longitude,
+    elevation: typeof r.elevation === "number" ? r.elevation : null,
+  }));
 }
 
 /** Open-Meteo is called straight from the browser (it allows CORS).
