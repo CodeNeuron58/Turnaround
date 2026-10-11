@@ -48,7 +48,7 @@ gone out (`alert_fired`). The CLI still works for tests:
 ```bash
 # plan + start a trip in the prediction service first (it must be "active"), then:
 npx tsx src/cli.ts start --trip 2 [--deadline 30]      # 30s override for tests
-npx tsx src/cli.ts checkin --workflow trip-2           # "I'm out"
+npx tsx src/cli.ts checkin --workflow trip-2           # the check-in
 ```
 
 ## Proof — five scenarios (evidence in `docs/evidence/`)

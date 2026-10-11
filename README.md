@@ -12,7 +12,8 @@ Built for the [Hacktoberfest Open-Source AI Challenge: Week 1](https://dev.to/ch
 
 - **Predict** — TabPFN, in context on 7,186 real hikes from hikr.org, estimates your moving time as a range. A personal pace factor — your finished hikes against the crowd's estimate for the same routes — tunes it to you from your first check-in. Your planned breaks are added on top.
 - **Turn around** — three moments per trip: *turn around by* (not at the top or the far end by then? head back), *back by* (the 90th percentile — 9 in 10 hikes like yours finish sooner), checked against sunset.
-- **Brief** — Gemma 4, running on your own machine, turns the numbers into a plain-language briefing, spoken aloud with Piper and saved to your phone before you leave.
+- **Brief** — Gemma 4, running on your own machine, turns the numbers into a plain-language briefing, spoken aloud by Kokoro (an open 82M-parameter voice model, on your machine) and saved to your phone before you leave.
+- **Check in** — *Hike complete* or *I turned back early*. Both stop the safety timer; only completed hikes tune your pace factor, because a turned-back time says nothing fair about the whole route.
 - **Watch** — a Temporal safety timer waits for your check-in. If you're still out well past your back-by time (the 95th percentile + breaks + 30 min), it emails your contact the plan, the route, and a map link to where you set off — even if the server restarts mid-trip. Check in late and they get an all-clear.
 
 <p align="center">
@@ -23,10 +24,11 @@ Built for the [Hacktoberfest Open-Source AI Challenge: Week 1](https://dev.to/ch
 <p align="center"><sub>Captured from the running app with the synthetic <a href="data/sample-route.gpx">sample route</a>. The trail and summary shots fast-forward the trip clock to show a mid-hike and a finish.</sub></p>
 
 <details>
-<summary>More screens — no signal on the trail, and a timer that failed to arm</summary>
+<summary>More screens — no signal on the trail, a timer that failed to arm, turning back</summary>
 <p align="center">
   <img src="docs/screenshots/checkin-offline-phone.png" width="240" alt="Check-in saved on the phone while offline">
   <img src="docs/screenshots/timer-not-armed-phone.png" width="240" alt="Red banner: safety timer NOT armed, with a retry">
+  <img src="docs/screenshots/summary-turned-back-phone.png" width="240" alt="Turned back: good call, no pace-factor change">
   <img src="docs/screenshots/trail-desktop.png" width="480" alt="On-trail screen on a laptop">
 </p>
 </details>
@@ -68,7 +70,7 @@ flowchart LR
   subgraph laptop["Your laptop: the whole server"]
     app["App<br/>React + Vite"] -->|"/api"| svc["Prediction service<br/>FastAPI · TabPFN · SQLite"]
     svc -->|"briefing"| gemma["Gemma 4<br/>via Ollama"]
-    svc -->|"spoken audio"| piper["Piper TTS"]
+    svc -->|"spoken audio"| tts["Kokoro TTS<br/>ONNX"]
     svc -->|"arm timer · check-in signal"| tmp[("Temporal server<br/>persistent store")]
     tmp <--> wk["Worker<br/>tripWorkflow"]
   end
@@ -114,7 +116,7 @@ itself (a Windows Update reboot included), not just of the worker.
 
 Plan a hike in the app — no GPX handy? [`data/sample-route.gpx`](data/sample-route.gpx) is a
 synthetic demo loop. Start arms the Temporal timer, the trail screen speaks the briefing, and
-"I'm out" checks you in. The agent CLI (`npx tsx agent/src/cli.ts --gpx data/sample-route.gpx --grade 3`)
+"Hike complete" — or "I turned back early" — checks you in. The agent CLI (`npx tsx agent/src/cli.ts --gpx data/sample-route.gpx --grade 3`)
 runs the same plan from a terminal; curl recipes live in [workflows/README.md](workflows/README.md).
 
 ## Tests
@@ -138,7 +140,7 @@ The laptop is the server, so your phone has to reach it from the trail:
 - **Keep the laptop awake and online** for the whole hike — it runs the timer and sends the email.
   Plugged in: `powercfg /change standby-timeout-ac 0` (restore later with your usual value).
 - **Plan while you have signal.** The briefing and its audio are saved to the phone when you plan.
-  On the trail, keep the tab open: with no signal, "I'm out" is saved on the phone and sent the
+  On the trail, keep the tab open: with no signal, your check-in is saved on the phone and sent the
   moment it can reach the laptop. (A page *reload* needs signal — there's no offline web cache.)
 
 **Missed-check-in drill:** open the app as `http://…:5173/?drill=120` — the contact is emailed

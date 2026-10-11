@@ -10,7 +10,8 @@ The Turnaround web app — three screens, mobile-friendly, no UI framework:
 - **On trail** — a ring that counts down to turn-around, then to back-by, then
   to the alert; the briefing and audio from the phone's storage; the safety
   timer's real state (a red banner with a retry if it failed to arm); and the
-  big **I'm out** button. With no signal, the check-in is saved on the phone
+  **Hike complete ✓** / **I turned back early** buttons (both stop the timer;
+  only completed hikes train the pace factor). With no signal, the check-in is saved on the phone
   and sent as soon as it can reach the laptop. A refreshed or discarded tab
   comes back to this screen.
 - **Summary** — predicted vs actual (breaks included on both sides), whether

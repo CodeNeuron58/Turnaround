@@ -4,7 +4,23 @@ Local binaries and models for Turnaround. **Nothing in this folder is committed*
 it's all re-fetchable with the commands below (network note: use IPv4; see README
 troubleshooting — `curl -4`).
 
-## Piper TTS (open-source text-to-speech)
+## Kokoro TTS (the briefing voice)
+
+[Kokoro-82M](https://github.com/thewh1teagle/kokoro-onnx) — an open (Apache-2.0) 82M-parameter
+voice model, run through onnxruntime inside the prediction service (`pip` package `kokoro-onnx`,
+already in `prediction/requirements.txt`). Model files:
+
+```bash
+mkdir -p kokoro
+curl -4L https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx -o kokoro/kokoro-v1.0.onnx   # 325 MB
+curl -4L https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin -o kokoro/voices-v1.0.bin     # 28 MB
+```
+
+Default voice `af_heart` (54 available — `KOKORO_VOICE`). On this laptop's CPU it renders 18.6 s
+of speech in ~12 s after a ~4 s model load. If the files are missing or Kokoro fails, the service
+falls back to Piper.
+
+## Piper TTS (fallback voice; the agent CLI's voice)
 
 ```bash
 mkdir -p piper/voice
