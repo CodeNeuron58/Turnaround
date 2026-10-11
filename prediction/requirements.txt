@@ -1,15 +1,18 @@
-# TabPFN hike-time prediction service
-tabpfn
-pandas
-numpy
-scikit-learn
-gpxpy
+# TabPFN hike-time prediction service.
+# Pinned to the versions it was built, evaluated and tested with — TabPFN
+# checkpoints are version-sensitive, and torch arrives through tabpfn.
+tabpfn==9.1.0
+torch==2.14.1
+pandas==3.0.6
+numpy==2.4.6
+scikit-learn==1.9.1
+gpxpy==1.6.2
 
 # HTTP service
-fastapi
-uvicorn[standard]
-requests
-python-dotenv
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+requests==2.34.2
+python-dotenv==1.2.4
 
 # safety timer client (workflows execute in the TS worker)
-temporalio
+temporalio==1.34.0
