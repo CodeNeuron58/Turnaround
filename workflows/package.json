@@ -8,6 +8,7 @@
     "start": "tsx src/cli.ts start",
     "checkin": "tsx src/cli.ts checkin",
     "test-email": "tsx src/send-test-email.ts",
+    "preview-emails": "tsx src/preview-emails.ts",
     "typecheck": "tsc -p ."
   },
   "dependencies": {

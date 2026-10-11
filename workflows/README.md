@@ -13,9 +13,13 @@ The Temporal safety timer — the promise the app makes to every hiker:
   deadline timer; the service sets the deadline to the trip's alert moment —
   P95 + planned breaks + 30 min grace — overridable for drills and tests). A
   check-in after the alert sends the contact an all-clear.
-- `src/activities.ts` — the alert and all-clear emails. Alerts carry the hiker's
-  name, trailhead and route-centre map links, sunset and rain; drill emails are
-  marked `[DRILL]`. Simulated outage for the retry test: `FAIL_FIRST_N=2` in the
+- `src/emails.ts` — the alert and all-clear emails: designed HTML (the app's
+  cream & forest style, built from tables and inline styles so phone and desktop
+  clients agree) plus a plain-text version. Alerts carry the hiker's name, a map
+  button for where they set off, the route centre, sunset, rain and what to do;
+  drill emails are marked `[DRILL]`. See them without a drill:
+  `npm run preview-emails -w @turnaround/workflows` (add `-- --send you@example.com` to send).
+- `src/activities.ts` — the activities that render and deliver those emails. Simulated outage for the retry test: `FAIL_FIRST_N=2` in the
   worker's environment.
 - `src/mail.ts` — delivery: always a copy in `outbox/`, and through
   [Brevo](https://www.brevo.com) when `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`

@@ -14,6 +14,7 @@ export interface Email {
   to: string;
   subject: string;
   text: string;
+  html?: string; // sent alongside the text; clients pick what they can render
 }
 
 // read per call: the worker loads .env after this module's imports have run
@@ -27,6 +28,7 @@ function writeOutbox(email: Email, fileStem: string): string {
   mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${fileStem}.txt`);
   writeFileSync(file, [`TO: ${email.to}`, `SUBJECT: ${email.subject}`, "", email.text].join("\n"), "utf-8");
+  if (email.html) writeFileSync(path.join(dir, `${fileStem}.html`), email.html, "utf-8");
   return file;
 }
 
@@ -39,6 +41,7 @@ async function sendViaBrevo(email: Email, apiKey: string, sender: string): Promi
       to: [{ email: email.to }],
       subject: email.subject,
       textContent: email.text,
+      ...(email.html ? { htmlContent: email.html } : {}),
     }),
     signal: AbortSignal.timeout(30_000),
   });
