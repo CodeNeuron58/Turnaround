@@ -141,7 +141,7 @@ export default function Trail({
   const remainingSec = (phase.target - now) / 1000;
   const frac = phase.target > phase.from ? Math.max(0, Math.min(1, (phase.target - now) / (phase.target - phase.from))) : 1;
   const expectedTotal = prediction.expected_min + (trip.breaks_min ?? 0);
-  const deltaMin = Math.round(elapsedSec / 60 - expectedTotal);
+  const daylightMin = sunset.sunsetEpochMs != null ? (sunset.sunsetEpochMs - now) / 60_000 : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -205,11 +205,10 @@ export default function Trail({
               <div className="k">expected in total</div>
             </div>
             <div className="mini-stat">
-              <div className="v" style={{ color: deltaMin > 0 ? "var(--amber)" : "var(--green)" }}>
-                {deltaMin >= 0 ? "+" : "−"}
-                {fmtHM(Math.abs(deltaMin))}
+              <div className="v" style={{ color: daylightMin != null && daylightMin < 60 ? "var(--amber)" : undefined }}>
+                {daylightMin == null ? "—" : daylightMin <= 0 ? "dark" : fmtHM(daylightMin)}
               </div>
-              <div className="k">vs expected</div>
+              <div className="k">daylight left</div>
             </div>
           </div>
         </section>

@@ -199,7 +199,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <div className="ready-head">
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button className="linklike" onClick={() => setPhase("form")}>← Edit plan</button>
+            <button className="linklike" style={{ alignSelf: "flex-start" }} onClick={() => setPhase("form")}>← Edit plan</button>
             <div className="ready-title">
               <h1 className="h1 mid">{name}</h1>
               <span className="grade-badge">T{grade}</span>
@@ -214,7 +214,7 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
           <section className="hero-green">
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <span className="eyebrow">TURN AROUND BY</span>
-              <span className="turnback-serif">{fmtTimeOfDay(turnAt)}</span>
+              <span className="turnback-serif">{bigTime(turnAt)}</span>
               <span className="hero-sub">
                 Not at the top — or the far end — by then? Head back. That gets you down by{" "}
                 {fmtTimeOfDay(backAt)}, the cautious estimate: 9 in 10 hikes like this
@@ -429,6 +429,17 @@ export default function Plan({ onPlanned }: { onPlanned: (d: PlanData) => void }
 
       {error && <p className="error-box">{error}</p>}
     </div>
+  );
+}
+
+/** "10:37 AM" with the AM/PM set small, so a five-digit time stays on one line. */
+function bigTime(ms: number) {
+  const [clock, meridiem] = fmtTimeOfDay(ms).split(" ");
+  return (
+    <>
+      {clock}
+      {meridiem && <span className="meridiem">{meridiem}</span>}
+    </>
   );
 }
 

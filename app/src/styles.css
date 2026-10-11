@@ -327,6 +327,7 @@ input, button, select { font-family: inherit; }
 .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 20px; align-items: stretch; }
 
 .hero-green {
+  container-type: inline-size;
   border-radius: var(--radius-card);
   background: var(--green);
   color: var(--on-green);
@@ -338,16 +339,18 @@ input, button, select { font-family: inherit; }
 }
 .hero-green .eyebrow { color: var(--green-text-soft); }
 .turnback-serif {
+  white-space: nowrap;
   font-family: "Newsreader", serif;
   font-weight: 500;
   font-size: clamp(80px, 12vw, 136px);
   line-height: 0.9;
   letter-spacing: -0.035em;
 }
+.turnback-serif .meridiem { font-size: 0.4em; letter-spacing: 0; margin-left: 0.14em; }
 .hero-sub { font-size: 16px; color: var(--green-pale-text); line-height: 1.5; max-width: 40ch; text-wrap: pretty; }
 .hero-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   background: rgba(243, 240, 230, 0.18);
   border-radius: 14px;
@@ -355,7 +358,10 @@ input, button, select { font-family: inherit; }
 }
 .hero-stats > div { background: var(--green); padding: 14px 4px 12px 14px; }
 .hero-stats .k { font-size: 12px; color: var(--green-text-soft); }
-.hero-stats .v { font-size: 22px; font-weight: 600; }
+.hero-stats .v { font-size: 22px; font-weight: 600; white-space: nowrap; }
+@container (max-width: 560px) {
+  .hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 .likely-card { border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); padding: 22px 24px; display: flex; flex-direction: column; gap: 6px; }
 .likely-time { font-family: "Newsreader", serif; font-size: clamp(40px, 5vw, 52px); line-height: 1; }
@@ -451,7 +457,7 @@ input, button, select { font-family: inherit; }
 
 .mini-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: 100%; }
 .mini-stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
-.mini-stat .v { font-size: 20px; font-weight: 600; }
+.mini-stat .v { font-size: 20px; font-weight: 600; white-space: nowrap; }
 .mini-stat .k { font-size: 12px; color: var(--muted); }
 
 .briefing-card { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 22px; display: flex; flex-direction: column; gap: 14px; }
@@ -600,4 +606,7 @@ input, button, select { font-family: inherit; }
   .pv-grid > div + div { border-left: 0; border-top: 1px solid var(--line); }
   .steps { display: none; }
   .hero-stats > div { padding-left: 10px; }
+  .mini-stats { gap: 8px; }
+  .mini-stat { padding: 10px 10px; }
+  .mini-stat .v { font-size: 16px; }
 }
