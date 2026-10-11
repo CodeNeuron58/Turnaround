@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Plan from "./screens/Plan";
 import Trail from "./screens/Trail";
 import Out from "./screens/Out";
-import { api, HttpError, type CheckinResult, type Trip } from "./api";
+import { api, HttpError, type CheckinResult, type Outcome, type Trip } from "./api";
 import { saved, type PendingCheckin, type SavedPlan } from "./store";
 
 type View = "plan" | "trail" | "out";
@@ -107,7 +107,7 @@ export default function App() {
     if (!p || flushing.current) return;
     flushing.current = true;
     try {
-      const res = await api.checkout(p.tripId, p.actualMin);
+      const res = await api.checkout(p.tripId, p.actualMin, p.outcome ?? "completed");
       saved.setPending(null);
       setPending(null);
       setCheckinError(null);
@@ -135,9 +135,9 @@ export default function App() {
     };
   }, [pending, flush]);
 
-  const checkIn = (actualMin: number) => {
+  const checkIn = (actualMin: number, outcome: Outcome) => {
     if (!plan) return;
-    const p = { tripId: plan.trip.id, actualMin, tappedAt: Date.now() };
+    const p = { tripId: plan.trip.id, actualMin, outcome, tappedAt: Date.now() };
     saved.setPending(p);
     setPending(p);
     setCheckinError(null);

@@ -1,5 +1,5 @@
 // The spoken briefing, prepared once per trip and kept on the phone: Gemma's
-// text, then Piper's wav. The Plan screen starts this as soon as a trip is
+// text, then the spoken wav (Kokoro). The Plan screen starts this as soon as a trip is
 // saved, so it is ready before the hiker leaves signal behind; the trail screen
 // asks again and gets the same promise (or the cached copy) back.
 

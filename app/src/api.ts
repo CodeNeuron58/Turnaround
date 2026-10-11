@@ -29,6 +29,9 @@ export interface Timeline {
   alert_at?: string;
 }
 
+/** How a trip ended: the whole route, or turned back before the end. */
+export type Outcome = "completed" | "turned_back";
+
 export interface Trip extends Features, Timeline {
   id: number;
   name: string;
@@ -51,6 +54,7 @@ export interface Trip extends Features, Timeline {
   rain_pct: number | null;
   briefing: string | null;
   drill: boolean;
+  outcome: Outcome | null;
 }
 
 export interface CheckinResult extends Trip {
@@ -140,11 +144,11 @@ export const api = {
 
   armTrip: (id: number) => post(`/trips/${id}/arm`).then((r) => j<Trip>(r)),
 
-  checkout: (id: number, actualMin: number) =>
+  checkout: (id: number, actualMin: number, outcome: Outcome) =>
     fetch(`${BASE}/trips/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actual_min: actualMin }),
+      body: JSON.stringify({ actual_min: actualMin, outcome }),
       signal: AbortSignal.timeout(20_000),
     }).then((r) => j<CheckinResult>(r)),
 

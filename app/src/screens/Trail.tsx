@@ -4,7 +4,7 @@ import { prepareBriefing } from "../briefing";
 import { fmtClock, fmtHM, fmtTimeOfDay } from "../format";
 import { saved, type PendingCheckin } from "../store";
 import type { PlanData } from "../App";
-import type { Trip } from "../api";
+import type { Outcome, Trip } from "../api";
 
 const RING_C = 2 * Math.PI * 126; // circumference of the r=126 ring
 
@@ -27,7 +27,7 @@ export default function Trail({
   plan: PlanData;
   pending: PendingCheckin | null;
   checkinError: string | null;
-  onCheckIn: (actualMin: number) => void;
+  onCheckIn: (actualMin: number, outcome: Outcome) => void;
   onRetryNow: () => void;
   onTripUpdate: (t: Trip) => void;
 }) {
@@ -116,6 +116,7 @@ export default function Trail({
   }
 
   const elapsedSec = Math.max(0, (now - startMs) / 1000);
+  const checkIn = (outcome: Outcome) => onCheckIn(Math.max(1, Math.round(elapsedSec / 60)), outcome);
 
   // where the hike is: heading out → heading back → overdue → contact alerted
   let phase: { color: string; label: string; target: number; from: number; caption: string; pulse: boolean };
@@ -287,7 +288,7 @@ export default function Trail({
 
           {pending ? (
             <div className="pending-card" role="status">
-              <strong>Check-in saved on this phone</strong>
+              <strong>{pending.outcome === "turned_back" ? "Turned back — check-in saved on this phone" : "Check-in saved on this phone"}</strong>
               <span>
                 {online
                   ? "Sending it to your laptop — retrying every few seconds until it lands."
@@ -299,13 +300,18 @@ export default function Trail({
               </button>
             </div>
           ) : (
-            <button className="im-out" onClick={() => onCheckIn(Math.max(1, Math.round(elapsedSec / 60)))}>
-              I'm out <span style={{ fontSize: "0.9em" }}>✓</span>
-            </button>
+            <>
+              <button className="im-out" onClick={() => checkIn("completed")}>
+                Hike complete <span style={{ fontSize: "0.9em" }}>✓</span>
+              </button>
+              <button className="turned-back" onClick={() => checkIn("turned_back")}>
+                I turned back early
+              </button>
+            </>
           )}
           <p style={{ margin: 0, textAlign: "center", fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
-            One tap stops the safety timer. No signal? It's saved on this phone and sent the moment
-            it can reach your laptop.
+            Either one stops the safety timer — tap it once you're off the trail. No signal? It's saved
+            on this phone and sent the moment it can reach your laptop.
           </p>
         </section>
       </div>

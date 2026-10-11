@@ -27,6 +27,7 @@ export default function Out({
   const gpxUrl = useMemo(() => (plan.file ? URL.createObjectURL(plan.file) : null), [plan.file]);
 
   const signalFailed = result.checkin_signal.startsWith("failed");
+  const turnedBack = result.outcome === "turned_back";
   const banner = signalFailed
     ? {
         warn: true,
@@ -58,9 +59,10 @@ export default function Out({
           }
         : {
             warn: false,
-            title: "Check-in received",
+            title: turnedBack ? "You turned back — good call" : "Check-in received",
             body: (
               <>
+                {turnedBack && <>That's exactly what a turn-around time is for. </>}
                 Your check-in reached the safety timer at {fmtTimeOfDay(result.finished_at ?? Date.now())}. Nobody was
                 alerted.
               </>
@@ -93,17 +95,20 @@ export default function Out({
       </div>
 
       <div className="pv-card">
-        <div className="pv-title">Predicted vs actual</div>
+        <div className="pv-title">{turnedBack ? "Planned vs time out" : "Predicted vs actual"}</div>
         <div className="pv-grid">
           <div>
-            <div className="k">Predicted{breaks ? `, with ${fmtHM(breaks)} of breaks` : ""}</div>
+            <div className="k">
+              {turnedBack ? "Planned, full route" : "Predicted"}
+              {breaks ? `, with ${fmtHM(breaks)} of breaks` : ""}
+            </div>
             <div className="big">{fmtHM(predicted)}</div>
             <div className="sub2">
               range {fmtHM(lo)} – {fmtHM(hi)}
             </div>
           </div>
           <div>
-            <div className="k">Actual</div>
+            <div className="k">{turnedBack ? "Time out" : "Actual"}</div>
             <div className="big">{fmtHM(actualMin)}</div>
             <div className="sub2">
               {fmtTimeOfDay(result.started_at ?? "")} – {fmtTimeOfDay(result.finished_at ?? "")}
@@ -118,8 +123,17 @@ export default function Out({
             <div className="tick" style={{ left: `${mark(actualMin)}%`, background: "var(--amber)" }} title="Actual" />
           </div>
           <div className="pv-note">
-            The model was <strong>{fmtHM(Math.abs(delta))} {delta >= 0 ? "optimistic" : "pessimistic"}</strong>
-            {insideRange ? ". Still inside the predicted range." : " — outside the predicted range."}
+            {turnedBack ? (
+              <>
+                You turned back after <strong>{fmtHM(actualMin)}</strong> of a route planned at {fmtHM(predicted)}.
+                Only completed hikes are compared with the prediction.
+              </>
+            ) : (
+              <>
+                The model was <strong>{fmtHM(Math.abs(delta))} {delta >= 0 ? "optimistic" : "pessimistic"}</strong>
+                {insideRange ? ". Still inside the predicted range." : " — outside the predicted range."}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -139,6 +153,15 @@ export default function Out({
                 Your pace factor is now ×{f.toFixed(2)} from {result.your_pace_hikes} hike
                 {result.your_pace_hikes === 1 ? "" : "s"}, so estimates for you run {pct(f)}%{" "}
                 {f >= 1 ? "longer" : "shorter"} than the crowd's. Your data stays on this device.
+              </div>
+            </>
+          ) : turnedBack ? (
+            <>
+              <div className="t">Turned-back hikes don't change your predictions</div>
+              <div className="d">
+                You didn't cover the whole route, so there's no fair comparison to learn from. Your pace
+                factor stays ×{f.toFixed(2)}
+                {result.your_pace_hikes ? ` from ${result.your_pace_hikes} hike${result.your_pace_hikes === 1 ? "" : "s"}` : ""}.
               </div>
             </>
           ) : (

@@ -4,7 +4,7 @@
 // too big for localStorage). Every access is guarded — private windows and
 // blocked storage must degrade to "not saved", never to a crash.
 
-import type { CheckinResult, Prediction, Route, Sunset, Trip } from "./api";
+import type { CheckinResult, Outcome, Prediction, Route, Sunset, Trip } from "./api";
 
 /** Everything the trail and summary screens need, minus the GPX File itself. */
 export interface SavedPlan {
@@ -17,6 +17,7 @@ export interface SavedPlan {
 export interface PendingCheckin {
   tripId: number;
   actualMin: number;
+  outcome: Outcome;
   tappedAt: number;
 }
 

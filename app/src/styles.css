@@ -537,6 +537,18 @@ input, button, select { font-family: inherit; }
   width: 100%;
 }
 .im-out:hover { background: var(--green-dark); }
+.turned-back {
+  height: 58px;
+  width: 100%;
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.turned-back:hover { background: var(--pale); }
 .im-out:active { transform: scale(0.99); }
 
 /* ---------- summary ---------- */
