@@ -1,0 +1,502 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": "2026-10-11T00:50:26.065639Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "taskId": "1048641",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "tripWorkflow"
+        },
+        "taskQueue": {
+          "name": "turnaround-trips",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJiYWNrQnlJc28iOiIyMDI2LTEwLTExVDAzOjExOjMyKzAwOjAwIiwiYnJlYWtzTWluIjozMC4wLCJjbGltYk0iOjE2MS4wLCJjb250YWN0RW1haWwiOiJmcmllbmRAZXhhbXBsZS5jb20iLCJkZWFkbGluZU1zIjoyOTkzOSwiZGVzY2VudE0iOjE1MS4wLCJkaXN0YW5jZUttIjo0LjQ2LCJkcmlsbCI6dHJ1ZSwiZXhwZWN0ZWRCYWNrSXNvIjoiMjAyNi0xMC0xMVQwMjo0Nzo1MCswMDowMCIsImhpZ2hlc3RNIjoxNDAwLjAsImhpa2VyIjoiQmlwcmF5YW4iLCJsYXRlQ2hlY2tpbldpbmRvd01zIjoyMTYwMDAwMCwicmFpbkNoYW5jZVBjdCI6MjAuMCwicm91dGVDZW50ZXIiOnsibGF0IjoyNy43MjUsImxvbiI6ODUuMzI1fSwicm91dGVOYW1lIjoiU21va2U6IGRyaWxsIiwic3RhcnRlZEF0SXNvIjoiMjAyNi0xMC0xMVQwMDo1MDoyNiswMDowMCIsInN1bnNldElzbyI6IjIwMjYtMTAtMTFUMDg6NTA6MDArMDA6MDAiLCJ0R3JhZGUiOjMsInRyYWlsaGVhZCI6eyJsYXQiOjI3LjcxLCJsb24iOjg1LjMxfSwidHJpcElkIjozfQ=="
+            }
+          ]
+        },
+        "workflowTaskTimeout": "10s",
+        "originalExecutionRunId": "01a12870-8891-79c0-bd22-6193c7dc5fbb",
+        "identity": "3996@<laptop>",
+        "firstExecutionRunId": "01a12870-8891-79c0-bd22-6193c7dc5fbb",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": "0s",
+        "workflowId": "trip-3",
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": "2026-10-11T00:50:26.066225700Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048642",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "turnaround-trips",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": "2026-10-11T00:50:26.096490400Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048647",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "19560@<laptop>",
+        "requestId": "e172dabc-513f-46fc-b018-05a47a45ae93",
+        "historySizeBytes": "795",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        }
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": "2026-10-11T00:50:26.157415900Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048651",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "startedEventId": "3",
+        "identity": "19560@<laptop>",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        },
+        "sdkMetadata": {
+          "coreUsedFlags": [
+            3,
+            1,
+            2
+          ],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.24.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": "2026-10-11T00:50:26.157415900Z",
+      "eventType": "EVENT_TYPE_TIMER_STARTED",
+      "taskId": "1048652",
+      "timerStartedEventAttributes": {
+        "timerId": "1",
+        "startToFireTimeout": "29.939s",
+        "workflowTaskCompletedEventId": "4"
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": "2026-10-11T00:50:56.113079100Z",
+      "eventType": "EVENT_TYPE_TIMER_FIRED",
+      "taskId": "1048656",
+      "timerFiredEventAttributes": {
+        "timerId": "1",
+        "startedEventId": "5"
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": "2026-10-11T00:50:56.113637400Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048657",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "19560@<laptop>-c0a3691064724e6e93e0e3f04d3ea3c0",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "turnaround-trips"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": "2026-10-11T00:50:56.168600600Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048661",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "19560@<laptop>",
+        "requestId": "d66fc633-e2b5-4f38-9d55-53b5a3cb982e",
+        "historySizeBytes": "1349",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        }
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": "2026-10-11T00:50:56.259412800Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048666",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "7",
+        "startedEventId": "8",
+        "identity": "19560@<laptop>",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": "2026-10-11T00:50:56.261138300Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "taskId": "1048667",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "1",
+        "activityType": {
+          "name": "escalateEmail"
+        },
+        "taskQueue": {
+          "name": "turnaround-trips",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {},
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJiYWNrQnlJc28iOiIyMDI2LTEwLTExVDAzOjExOjMyKzAwOjAwIiwiYnJlYWtzTWluIjozMCwiY2xpbWJNIjoxNjEsImNvbnRhY3RFbWFpbCI6ImZyaWVuZEBleGFtcGxlLmNvbSIsImRlYWRsaW5lTXMiOjI5OTM5LCJkZXNjZW50TSI6MTUxLCJkaXN0YW5jZUttIjo0LjQ2LCJkcmlsbCI6dHJ1ZSwiZXhwZWN0ZWRCYWNrSXNvIjoiMjAyNi0xMC0xMVQwMjo0Nzo1MCswMDowMCIsImhpZ2hlc3RNIjoxNDAwLCJoaWtlciI6IkJpcHJheWFuIiwibGF0ZUNoZWNraW5XaW5kb3dNcyI6MjE2MDAwMDAsInJhaW5DaGFuY2VQY3QiOjIwLCJyb3V0ZUNlbnRlciI6eyJsYXQiOjI3LjcyNSwibG9uIjo4NS4zMjV9LCJyb3V0ZU5hbWUiOiJTbW9rZTogZHJpbGwiLCJzdGFydGVkQXRJc28iOiIyMDI2LTEwLTExVDAwOjUwOjI2KzAwOjAwIiwic3Vuc2V0SXNvIjoiMjAyNi0xMC0xMVQwODo1MDowMCswMDowMCIsInRHcmFkZSI6MywidHJhaWxoZWFkIjp7ImxhdCI6MjcuNzEsImxvbiI6ODUuMzF9LCJ0cmlwSWQiOjN9"
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "21600s",
+        "scheduleToStartTimeout": "21600s",
+        "startToCloseTimeout": "120s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "9",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "backoffCoefficient": 2,
+          "maximumInterval": "300s",
+          "maximumAttempts": 20
+        },
+        "useWorkflowBuildId": true
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": "2026-10-11T00:50:56.269333800Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "taskId": "1048670",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "10",
+        "identity": "19560@<laptop>",
+        "requestId": "5460da7e-314e-456d-a67b-30bd5ea94af4",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        }
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": "2026-10-11T00:50:56.685424Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "taskId": "1048671",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJkZWxpdmVyZWQiOiJvdXRib3g6QzpcXFVzZXJzXFxiaXByYVxcQXBwRGF0YVxcTG9jYWxcXFRlbXBcXGNsYXVkZVxcYy0tVHVybkFyb3VuZFxcZTQ5Yzk1MjYtYmU5My00YTI4LWJjZDUtZjBiZmU1NDEwZWQ4XFxzY3JhdGNocGFkXFxvdXRib3hcXGVzY2FsYXRpb24tdHJpcC0zLnR4dCJ9"
+            }
+          ]
+        },
+        "scheduledEventId": "10",
+        "startedEventId": "11",
+        "identity": "19560@<laptop>"
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": "2026-10-11T00:50:56.686938400Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048672",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "19560@<laptop>-c0a3691064724e6e93e0e3f04d3ea3c0",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "turnaround-trips"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": "2026-10-11T00:50:56.710126400Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048676",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "13",
+        "identity": "19560@<laptop>",
+        "requestId": "80af8c55-e491-4349-aa16-ef3b401f6de1",
+        "historySizeBytes": "2900",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        }
+      }
+    },
+    {
+      "eventId": "15",
+      "eventTime": "2026-10-11T00:50:56.764157100Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048680",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "13",
+        "startedEventId": "14",
+        "identity": "19560@<laptop>",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "16",
+      "eventTime": "2026-10-11T00:50:56.764157100Z",
+      "eventType": "EVENT_TYPE_TIMER_STARTED",
+      "taskId": "1048681",
+      "timerStartedEventAttributes": {
+        "timerId": "2",
+        "startToFireTimeout": "21600s",
+        "workflowTaskCompletedEventId": "15"
+      }
+    },
+    {
+      "eventId": "17",
+      "eventTime": "2026-10-11T00:50:57.289474800Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+      "taskId": "1048684",
+      "workflowExecutionSignaledEventAttributes": {
+        "signalName": "trip.checkedIn",
+        "identity": "3996@<laptop>",
+        "requestId": "d283eecf-5d1c-4d12-9b82-99896ff33c50"
+      }
+    },
+    {
+      "eventId": "18",
+      "eventTime": "2026-10-11T00:50:57.289474800Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048685",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "19560@<laptop>-c0a3691064724e6e93e0e3f04d3ea3c0",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "turnaround-trips"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "19",
+      "eventTime": "2026-10-11T00:50:57.317429700Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048689",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "18",
+        "identity": "19560@<laptop>",
+        "requestId": "57d97baf-5173-459b-a6ea-520d15599ffa",
+        "historySizeBytes": "3491",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        }
+      }
+    },
+    {
+      "eventId": "20",
+      "eventTime": "2026-10-11T00:50:57.359149100Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048694",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "18",
+        "startedEventId": "19",
+        "identity": "19560@<laptop>",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        },
+        "sdkMetadata": {
+          "langUsedFlags": [
+            2
+          ]
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "21",
+      "eventTime": "2026-10-11T00:50:57.359149100Z",
+      "eventType": "EVENT_TYPE_TIMER_CANCELED",
+      "taskId": "1048695",
+      "timerCanceledEventAttributes": {
+        "timerId": "2",
+        "startedEventId": "16",
+        "workflowTaskCompletedEventId": "20",
+        "identity": "19560@<laptop>"
+      }
+    },
+    {
+      "eventId": "22",
+      "eventTime": "2026-10-11T00:50:57.359149100Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "taskId": "1048696",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "2",
+        "activityType": {
+          "name": "sendAllClear"
+        },
+        "taskQueue": {
+          "name": "turnaround-trips",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {},
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJiYWNrQnlJc28iOiIyMDI2LTEwLTExVDAzOjExOjMyKzAwOjAwIiwiYnJlYWtzTWluIjozMCwiY2xpbWJNIjoxNjEsImNvbnRhY3RFbWFpbCI6ImZyaWVuZEBleGFtcGxlLmNvbSIsImRlYWRsaW5lTXMiOjI5OTM5LCJkZXNjZW50TSI6MTUxLCJkaXN0YW5jZUttIjo0LjQ2LCJkcmlsbCI6dHJ1ZSwiZXhwZWN0ZWRCYWNrSXNvIjoiMjAyNi0xMC0xMVQwMjo0Nzo1MCswMDowMCIsImhpZ2hlc3RNIjoxNDAwLCJoaWtlciI6IkJpcHJheWFuIiwibGF0ZUNoZWNraW5XaW5kb3dNcyI6MjE2MDAwMDAsInJhaW5DaGFuY2VQY3QiOjIwLCJyb3V0ZUNlbnRlciI6eyJsYXQiOjI3LjcyNSwibG9uIjo4NS4zMjV9LCJyb3V0ZU5hbWUiOiJTbW9rZTogZHJpbGwiLCJzdGFydGVkQXRJc28iOiIyMDI2LTEwLTExVDAwOjUwOjI2KzAwOjAwIiwic3Vuc2V0SXNvIjoiMjAyNi0xMC0xMVQwODo1MDowMCswMDowMCIsInRHcmFkZSI6MywidHJhaWxoZWFkIjp7ImxhdCI6MjcuNzEsImxvbiI6ODUuMzF9LCJ0cmlwSWQiOjN9"
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "21600s",
+        "scheduleToStartTimeout": "21600s",
+        "startToCloseTimeout": "120s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "20",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "backoffCoefficient": 2,
+          "maximumInterval": "300s",
+          "maximumAttempts": 20
+        },
+        "useWorkflowBuildId": true
+      }
+    },
+    {
+      "eventId": "23",
+      "eventTime": "2026-10-11T00:50:57.359149100Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "taskId": "1048699",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "22",
+        "identity": "19560@<laptop>",
+        "requestId": "b85277b5-54e1-4d6e-9da5-74b98daed2bf",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        }
+      }
+    },
+    {
+      "eventId": "24",
+      "eventTime": "2026-10-11T00:50:57.388065Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "taskId": "1048700",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJkZWxpdmVyZWQiOiJvdXRib3g6QzpcXFVzZXJzXFxiaXByYVxcQXBwRGF0YVxcTG9jYWxcXFRlbXBcXGNsYXVkZVxcYy0tVHVybkFyb3VuZFxcZTQ5Yzk1MjYtYmU5My00YTI4LWJjZDUtZjBiZmU1NDEwZWQ4XFxzY3JhdGNocGFkXFxvdXRib3hcXGFsbGNsZWFyLXRyaXAtMy50eHQifQ=="
+            }
+          ]
+        },
+        "scheduledEventId": "22",
+        "startedEventId": "23",
+        "identity": "19560@<laptop>"
+      }
+    },
+    {
+      "eventId": "25",
+      "eventTime": "2026-10-11T00:50:57.388065Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048701",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "19560@<laptop>-c0a3691064724e6e93e0e3f04d3ea3c0",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "turnaround-trips"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "26",
+      "eventTime": "2026-10-11T00:50:57.409433400Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048705",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "25",
+        "identity": "19560@<laptop>",
+        "requestId": "409d2c42-d464-49e1-89f8-c340e95a9db2",
+        "historySizeBytes": "5103",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        }
+      }
+    },
+    {
+      "eventId": "27",
+      "eventTime": "2026-10-11T00:50:57.442633800Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048709",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "25",
+        "startedEventId": "26",
+        "identity": "19560@<laptop>",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+b8800472abbf8804643204f0ac131d9804b32678aeeeb662738049f1cf88e5f1"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "28",
+      "eventTime": "2026-10-11T00:50:57.442633800Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+      "taskId": "1048710",
+      "workflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "ImVzY2FsYXRlZF9sYXRlX2NoZWNraW4i"
+            }
+          ]
+        },
+        "workflowTaskCompletedEventId": "27"
+      }
+    }
+  ]
+}

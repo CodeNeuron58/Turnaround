@@ -48,13 +48,18 @@ npx tsx src/cli.ts start --trip 2 [--deadline 30]      # 30s override for tests
 npx tsx src/cli.ts checkin --workflow trip-2           # "I'm out"
 ```
 
-## Proof — all three scenarios (evidence in `docs/evidence/`)
+## Proof — five scenarios (evidence in `docs/evidence/`)
+
+Scenarios 1–3 ran before the alert moved from P90 to P95 + breaks + grace and before alerts
+carried a location; 4–5 use the current flow. `tests/smoke_stack.py` re-runs 1 and 4 on demand.
 
 | Test | Scenario | Result | Evidence |
 |---|---|---|---|
 | 1 | Check in on time | `checked_in_on_time` | `test1_on_time.txt` |
 | 2 | Miss check-in + email server fails once | retry (attempt 2) → `escalated` | `test2_escalation_retry.json`, `test2_alert_email.txt` |
 | 3 | **Worker killed mid-trip**, restarted 25 s later | escalation fires exactly on the deadline | `test3_worker_restart.json`, `test3_alert_email.txt` |
+| 4 | Drill: missed check-in, then a late check-in | alert on the deadline, then an all-clear → `escalated_late_checkin` | `test4_drill_history.json`, `test4_drill_alert_email.txt`, `test4_drill_allclear_email.txt` |
+| 5 | **Temporal server killed mid-trip**, restarted on its `--db-filename` store | the timer is still `RUNNING` afterwards; check-in and arm failures during the outage are reported, then succeed on retry | `test5_temporal_server_restart.txt` |
 
 Test 3's proof: workflow started at `…377596`, escalation email written at
 `…468138` — **90.5 s later**, the full deadline, despite the worker being dead

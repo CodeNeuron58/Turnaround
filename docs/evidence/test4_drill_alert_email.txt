@@ -1,0 +1,26 @@
+TO: friend@example.com
+SUBJECT: [DRILL] Turnaround alert — Biprayan is overdue on "Smoke: drill"
+
+THIS IS A PLANNED DRILL — no action needed. The deadline was shortened on
+purpose; a real alert looks exactly like the rest of this email.
+
+Biprayan listed you as their emergency contact in Turnaround, the hiking
+companion app. They started a hike and have not checked in, well past the
+time the app calculated they should be back.
+
+  Hiker:             Biprayan
+  Route:             Smoke: drill (grade T3)
+  Distance:          4.46 km, 161 m of climbing, high point 1400 m
+  Set off from:      27.71000, 85.31000 — https://www.openstreetmap.org/?mlat=27.71&mlon=85.31#map=15/27.71/85.31
+  Middle of route:   27.72500, 85.32500 — https://www.openstreetmap.org/?mlat=27.725&mlon=85.325#map=15/27.725/85.325
+  Started:           11 Oct 2026, 06:20
+  Expected back:     11 Oct 2026, 08:17 (typical estimate, 30 min of breaks included)
+  Should be back by: 11 Oct 2026, 08:41 (cautious estimate)
+  Sunset:            11 Oct 2026, 14:20
+  Rain chance:       20%
+
+If you can reach them, a phone call may be all it takes. If not, the route
+above is the one they planned to follow, starting from the first location.
+If they check in, you'll get a second email saying they're safe.
+
+— Turnaround (sent automatically, from their own machine)

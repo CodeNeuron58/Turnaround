@@ -1,0 +1,10 @@
+TO: friend@example.com
+SUBJECT: [DRILL] Turnaround — Biprayan is safe
+
+Biprayan just checked in from "Smoke: drill" — they're off the trail.
+You can stand down; ignore our earlier overdue alert.
+
+  Started:     11 Oct 2026, 06:20
+  Checked in:  11 Oct 2026, 06:20
+
+— Turnaround (sent automatically, from their own machine)

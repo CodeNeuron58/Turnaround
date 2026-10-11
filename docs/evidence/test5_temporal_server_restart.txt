@@ -1,0 +1,18 @@
+[06:22:14] Scenario 5 — the Temporal SERVER dies mid-trip and comes back (dev server with --db-filename)
+
+[06:23:06] trip 4 started; timer_status='armed'; workflow trip-4 is RUNNING
+[06:23:22] Temporal server process killed
+[06:23:55] trip 5 started while Temporal is down -> trip status='active', timer_status='failed: tcp connect error'
+[06:23:55]   (the app shows this as a red 'Safety timer NOT armed' banner with a retry)
+[06:24:11] trip 4 checks in while Temporal is down -> checkin_signal='failed: tcp connect error'
+[06:24:11]   (the summary screen tells the hiker the timer didn't hear it and to text their contact)
+[06:24:28] Temporal server restarted on the same --db-filename store
+[06:24:28] workflow trip-4 after the restart: RUNNING  <- the timer survived the outage
+[06:24:28] trip 4 check-in re-sent (idempotent) -> already_checked_out=True, checkin_signal='delivered'
+[06:24:28] trip 5 POST /arm -> timer_status='armed' (deadline still measured from the original start)
+[06:24:32] workflow trip-4: COMPLETED
+[06:24:32] trip 5 checks in -> checkin_signal='delivered', alert_fired=False
+[06:24:35] workflow trip-5: COMPLETED
+
+[06:24:35] Nobody was emailed: both hikers checked in before their alert moments, and the outage
+[06:24:35] was surfaced honestly in between instead of pretending the timers were armed.

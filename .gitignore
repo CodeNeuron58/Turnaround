@@ -30,6 +30,7 @@ tools/*
 !tools/README.md
 *.gpx
 !data/test-route.gpx
+!data/sample-route.gpx
 
 # Logs
 *.log
