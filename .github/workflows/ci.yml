@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  typescript:
+    name: Typecheck, build, agent tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck -w @turnaround/app
+      - run: npm run typecheck -w @turnaround/agent
+      - run: npm run typecheck -w @turnaround/workflows
+      - run: npm run build -w @turnaround/app
+      - run: npm test -w @turnaround/agent
+
+  python:
+    name: Trip-rule tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # the rules are stdlib-only by design, so no TabPFN/torch install here
+      - run: python -m unittest discover -s prediction/tests -t . -v
+      - run: python -m py_compile prediction/*.py tests/*.py

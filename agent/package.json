@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "plan": "tsx src/cli.ts",
+    "test": "tsx --test src/agent.test.ts",
     "typecheck": "tsc -p ."
   },
   "devDependencies": {
