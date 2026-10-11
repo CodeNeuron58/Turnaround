@@ -10,7 +10,9 @@ TabPFN hike-time prediction service (Python).
   Why not just add your hikes to TabPFN's context: measured, three of them moved the median by <1%
   against 2,000 strangers' hikes.
 - Every trip moment comes from one function: turn around by (Naismith's outbound share of the
-  back-by time), back by (P90 + breaks), alert (P95 + breaks + `ALERT_GRACE_MIN`, default 30)
+  back-by time), back by (P90 + breaks), alert (P95 + breaks + `ALERT_GRACE_MIN`, default 30).
+  These rules live in [`rules.py`](rules.py) — pure, stdlib-only, unit-tested in
+  [`tests/test_rules.py`](tests/test_rules.py) (`python -m unittest discover -s prediction/tests -t .`)
 - A Naismith's-rule baseline is kept alongside for honest comparison
 
 ## Setup
