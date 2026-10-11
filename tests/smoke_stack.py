@@ -7,8 +7,9 @@
 
 Scenarios: plan -> start -> check in (signal delivered, nobody alerted, pace
 factor learns); a repeated check-in is idempotent; a 5-minute check-in never
-trains; the drill (alert fires on the deadline, late check-in, all-clear).
---briefing also exercises Gemma + Piper (needs Ollama; 1-3 min on CPU).
+trains; turning back stops the timer but never trains; the drill (alert fires
+on the deadline, late check-in, all-clear).
+--briefing also exercises Gemma + the voice (Kokoro, or Piper as fallback).
 Refuses to run against data/trips.db.
 """
 
@@ -38,7 +39,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--service", default=os.environ.get("PREDICTION_SERVICE_URL", "http://127.0.0.1:8000"))
     ap.add_argument("--outbox", default=os.environ.get("OUTBOX_DIR", str(ROOT / "workflows" / "outbox")))
-    ap.add_argument("--briefing", action="store_true", help="also test Gemma briefing + Piper audio")
+    ap.add_argument("--briefing", action="store_true", help="also test the Gemma briefing + spoken audio")
     args = ap.parse_args()
     B, outbox = args.service, pathlib.Path(args.outbox)
 
@@ -74,7 +75,8 @@ def main() -> None:
         check(b.status_code == 200 and len(b.json().get("briefing", "")) > 40, f"Gemma briefing ({time.time() - t0:.0f}s)")
         check(post(f"/trips/{t['id']}/briefing").json() == b.json(), "briefing is stored, not regenerated")
         a = post(f"/trips/{t['id']}/briefing/audio")
-        check(a.status_code == 200 and a.content[:4] == b"RIFF", f"Piper wav ({len(a.content) // 1024} KB)")
+        check(a.status_code == 200 and a.content[:4] == b"RIFF",
+              f"spoken briefing via {a.headers.get('x-tts-engine', '?')} ({len(a.content) // 1024} KB)")
     s = post(f"/trips/{t['id']}/start").json()
     check(s["timer_status"] == "armed", "start arms the safety timer")
     actual = round(t["crowd_min"] * t["pace_factor"] * 1.4 + 30, 1)  # 1.4x slower than predicted, plus breaks
@@ -93,7 +95,16 @@ def main() -> None:
     c = post(f"/trips/{t['id']}/checkout", json={"actual_min": 5}).json()
     check(not c["trained"], "too short to learn from")
 
-    print("3. drill: alert on the deadline -> late check-in -> all-clear")
+    print("3. turned back: the timer stops, the pace factor doesn't move")
+    _, t = plan("Smoke: turned back")
+    before = requests.get(f"{B}/health", timeout=10).json()
+    post(f"/trips/{t['id']}/start")
+    c = post(f"/trips/{t['id']}/checkout", json={"actual_min": 150, "outcome": "turned_back"}).json()
+    after = requests.get(f"{B}/health", timeout=10).json()
+    check(c["outcome"] == "turned_back" and c["checkin_signal"] == "delivered", "turned-back check-in stops the timer")
+    check(not c["trained"] and after["pace_hikes"] == before["pace_hikes"], "a turned-back hike never trains")
+
+    print("4. drill: alert on the deadline -> late check-in -> all-clear")
     _, t = plan("Smoke: drill")
     s = post(f"/trips/{t['id']}/start?alert_in_sec=30").json()
     check(s["drill"] and s["timer_status"] == "armed", "drill armed: alert 30 s after start")

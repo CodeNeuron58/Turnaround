@@ -9,9 +9,9 @@ Endpoints:
     GET  /trips/{id}                -> one trip with its timeline (the app resumes from this)
     POST /trips/{id}/start          -> hiker set off: arms the Temporal safety timer
     POST /trips/{id}/arm            -> retry a safety timer that failed to arm at start
-    POST /trips/{id}/checkout       -> "I'm out": records the time, stops the timer (idempotent)
+    POST /trips/{id}/checkout       -> check-in (completed or turned_back): records it, stops the timer (idempotent)
     POST /trips/{id}/briefing       -> Gemma writes the spoken briefing (once; stored)
-    POST /trips/{id}/briefing/audio -> Piper renders it to a wav
+    POST /trips/{id}/briefing/audio -> Kokoro (Piper fallback) reads it into a wav
 
 Two layers of prediction:
   1. TabPFN models the crowd: a fixed, seeded sample of the 7,186 hikr.org
@@ -36,6 +36,7 @@ import re
 import sqlite3
 import subprocess
 import threading
+import wave
 import time
 from contextlib import asynccontextmanager, closing, suppress
 from datetime import datetime, timedelta, timezone
@@ -53,6 +54,8 @@ import requests
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 from tabpfn import TabPFNRegressor
 from temporalio.exceptions import WorkflowAlreadyStartedError
@@ -77,6 +80,7 @@ N_ESTIMATORS = int(os.environ.get("TABPFN_N_ESTIMATORS", "6"))
 
 _predict_lock = threading.Lock()
 _briefing_lock = threading.Lock()
+_tts_lock = threading.Lock()
 _state: dict = {"reg": None, "model": "", "training_rows": 0, "temporal": None}
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -90,6 +94,11 @@ GEMMA_BASE_URL = os.environ.get("GEMMA_BASE_URL", "http://127.0.0.1:11434/v1")
 GEMMA_MODEL = os.environ.get("GEMMA_MODEL", "gemma4:e4b")
 PIPER_BIN = os.environ.get("PIPER_BIN", str(ROOT / "tools" / "piper-bin" / "piper" / "piper.exe"))
 PIPER_VOICE = os.environ.get("PIPER_VOICE", str(ROOT / "tools" / "piper" / "voice" / "en_US-amy-medium.onnx"))
+# the spoken briefing: Kokoro-82M (ONNX, Apache-2.0) by default, Piper as the fallback
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "kokoro")  # kokoro | piper
+KOKORO_MODEL = os.environ.get("KOKORO_MODEL", str(ROOT / "tools" / "kokoro" / "kokoro-v1.0.onnx"))
+KOKORO_VOICES = os.environ.get("KOKORO_VOICES", str(ROOT / "tools" / "kokoro" / "voices-v1.0.bin"))
+KOKORO_VOICE = os.environ.get("KOKORO_VOICE", "af_heart")
 BRIEFINGS_DIR = ROOT / "data" / "briefings"
 
 SCHEMA = """
@@ -129,6 +138,7 @@ ADDED_COLUMNS = {
         "timer_status": "TEXT NOT NULL DEFAULT 'not_started'",
         "moving_min": "REAL",
         "briefing": "TEXT",
+        "outcome": "TEXT",  # completed | turned_back — set at check-in
     },
     "personal_hikes": {
         "crowd_min": "REAL",
@@ -183,9 +193,24 @@ def fit_model() -> None:
     print(f"[turnaround] fitted on {len(df)} hikes in {time.time() - t0:.0f}s", flush=True)
 
 
+def _warm_gemma() -> None:
+    """Load Gemma into memory at boot — a cold load takes 1-3 min on CPU — so
+    the first briefing a hiker asks for doesn't pay for it."""
+    with suppress(Exception):
+        t0 = time.time()
+        requests.post(
+            f"{GEMMA_BASE_URL}/chat/completions",
+            json={"model": GEMMA_MODEL, "stream": False, "max_tokens": 1,
+                  "messages": [{"role": "user", "content": "ok"}]},
+            timeout=600,
+        )
+        print(f"[turnaround] Gemma warm in {time.time() - t0:.0f}s", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_schema()
+    threading.Thread(target=_warm_gemma, daemon=True).start()
     try:
         fit_model()
     except Exception as e:  # serve 503s rather than refusing to boot
@@ -580,7 +605,10 @@ async def arm_trip(trip_id: int) -> dict:
 
 
 class Checkout(BaseModel):
-    actual_min: float = Field(gt=0, le=1500, description="minutes from the start to the \"I'm out\" tap, breaks included")
+    actual_min: float = Field(gt=0, le=1500, description="minutes from the start to the check-in tap, breaks included")
+    # turned_back: they gave up on the route. Still a check-in (they're safe),
+    # but the time says nothing fair about their pace over the whole route.
+    outcome: Literal["completed", "turned_back"] = "completed"
 
 
 async def _signal_checkin(row) -> str:
@@ -623,12 +651,13 @@ async def checkout(trip_id: int, c: Checkout) -> dict:
             # moving time ≈ the clock minus the breaks they planned (never below half)
             moving = max(c.actual_min - (trip["breaks_min"] or 0), c.actual_min * 0.5)
             cur = conn.execute(
-                "UPDATE trips SET status='done', finished_at=?, actual_min=?, moving_min=?,"
+                "UPDATE trips SET status='done', finished_at=?, actual_min=?, moving_min=?, outcome=?,"
                 " started_at=COALESCE(started_at, ?) WHERE id=? AND status<>'done'",
-                (now, c.actual_min, moving, now, trip_id),
+                (now, c.actual_min, moving, c.outcome, now, trip_id),
             )
             first = cur.rowcount == 1  # a concurrent double tap loses the race here
-            if first and trip["crowd_min"] and MIN_TRAIN_MIN <= moving <= MAX_TRAIN_MIN:
+            if (first and c.outcome == "completed" and trip["crowd_min"]
+                    and MIN_TRAIN_MIN <= moving <= MAX_TRAIN_MIN):
                 conn.execute(
                     "INSERT INTO personal_hikes(distance_km, climb_m, descent_m, highest_m,"
                     " t_grade, duration_min, crowd_min, source, created_at) VALUES(?,?,?,?,?,?,?,?,?)",
@@ -722,7 +751,7 @@ def briefing_text(trip_id: int, refresh: bool = False) -> dict:
                         {"role": "user", "content": prompt},
                     ],
                 },
-                timeout=180,
+                timeout=300,
             )
         except requests.RequestException as e:
             raise HTTPException(502, f"gemma unreachable: {e}")
@@ -738,14 +767,23 @@ def briefing_text(trip_id: int, refresh: bool = False) -> dict:
         return {"briefing": text}
 
 
-@app.post("/trips/{trip_id}/briefing/audio")
-def briefing_audio(trip_id: int):
-    """Piper renders the trip's briefing to a wav the hiker plays offline."""
-    text = get_trip(trip_id)["briefing"]
-    if not text:
-        raise HTTPException(409, "generate the briefing text first (POST /trips/{id}/briefing)")
-    BRIEFINGS_DIR.mkdir(parents=True, exist_ok=True)
-    wav = BRIEFINGS_DIR / f"briefing-trip{trip_id}.wav"
+def _speak_kokoro(text: str, wav: pathlib.Path) -> None:
+    """Kokoro-82M through onnxruntime, in process. Loaded once, on first use
+    (~4 s); a 30-second briefing then renders in about 20 s on a laptop CPU."""
+    if _state.get("kokoro") is None:
+        from kokoro_onnx import Kokoro
+
+        _state["kokoro"] = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
+    samples, rate = _state["kokoro"].create(text, voice=KOKORO_VOICE, speed=1.0, lang="en-us")
+    pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype("<i2").tobytes()
+    with wave.open(str(wav), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(pcm)
+
+
+def _speak_piper(text: str, wav: pathlib.Path) -> None:
     proc = subprocess.run(
         [PIPER_BIN, "-m", PIPER_VOICE, "-f", str(wav)],
         input=text.encode("utf-8"),
@@ -753,8 +791,30 @@ def briefing_audio(trip_id: int):
         timeout=120,
     )
     if proc.returncode != 0:
-        raise HTTPException(502, f"piper failed: {proc.stderr.decode(errors='replace')[:200]}")
-    return FileResponse(wav, media_type="audio/wav", filename=wav.name)
+        raise RuntimeError(proc.stderr.decode(errors="replace")[:200])
+
+
+@app.post("/trips/{trip_id}/briefing/audio")
+def briefing_audio(trip_id: int):
+    """Reads the trip's briefing into a wav the hiker plays offline: Kokoro,
+    or Piper if Kokoro isn't installed or fails. One rendering at a time."""
+    text = get_trip(trip_id)["briefing"]
+    if not text:
+        raise HTTPException(409, "generate the briefing text first (POST /trips/{id}/briefing)")
+    BRIEFINGS_DIR.mkdir(parents=True, exist_ok=True)
+    wav = BRIEFINGS_DIR / f"briefing-trip{trip_id}.wav"
+    engines = {"kokoro": _speak_kokoro, "piper": _speak_piper}
+    order = ["kokoro", "piper"] if TTS_ENGINE == "kokoro" else ["piper"]
+    errors = []
+    with _tts_lock:
+        for name in order:
+            try:
+                engines[name](text, wav)
+                return FileResponse(wav, media_type="audio/wav", filename=wav.name, headers={"X-TTS-Engine": name})
+            except Exception as e:
+                errors.append(f"{name}: {e}")
+                print(f"[turnaround] {name} TTS failed: {e}", flush=True)
+    raise HTTPException(502, "speech failed — " + "; ".join(errors)[:300])
 
 
 if __name__ == "__main__":

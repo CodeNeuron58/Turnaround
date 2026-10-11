@@ -14,5 +14,9 @@ uvicorn[standard]==0.54.0
 requests==2.34.2
 python-dotenv==1.2.4
 
+# spoken briefing: Kokoro-82M via onnxruntime (Piper binary is the fallback)
+kokoro-onnx==0.6.1
+onnxruntime==1.31.0
+
 # safety timer client (workflows execute in the TS worker)
 temporalio==1.34.0
