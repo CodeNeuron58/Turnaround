@@ -3,7 +3,7 @@
 The numbers printed and saved here are the backbone of the DEV post:
 - average error (MAE) of each method
 - how often the actual hike time lands inside TabPFN's 90% band (P5-P95)
-- how often hikers finish before P90 — the number that sets the turn-back alarm
+- how often hikers finish before P90 — the calibration behind the app's back-by time
 
 Output: prediction/results/eval_results.json + eval_summary.md
 """
@@ -114,7 +114,7 @@ def main() -> None:
 | RMSE (min) | **{results['rmse_min']['tabpfn']:.1f}** | {results['rmse_min']['naismith']:.1f} |
 
 - Actual time inside the TabPFN 90% band (P5-P95): **{results['coverage_p05_p95_pct']:.1f}%**
-- Hikers who finished before P90 (the turn-back alarm): **{results['finished_before_p90_pct']:.1f}%**
+- Hikers who finished before P90 (the app's back-by time): **{results['finished_before_p90_pct']:.1f}%**
 - Mean 90% band width: {results['band_width_mean_min']:.0f} min
 - Seed {SEED}, features: {', '.join(FEATURES)}
 """

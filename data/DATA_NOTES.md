@@ -4,7 +4,9 @@
 
 **"GPS recorded hikes from hikr.org"** — Kaggle dataset [`roccoli/gpx-hike-tracks`](https://www.kaggle.com/datasets/roccoli/gpx-hike-tracks):
 ~12,000 GPX tracks and metadata of mountain hikes, scraped from hikr.org in spring 2018.
-See the Kaggle page for the dataset license. The file lives in `data/raw/` (gitignored).
+License: **CC0: Public Domain** (as declared on Kaggle). The features in its CSV were computed
+with gpxpy — the same library `import_hikes.py` uses for your own tracks. The file lives in
+`data/raw/` (gitignored); thanks to hikr.org and its users, who published these tracks.
 
 ## Output schema (`data/processed/hikes.csv`, gitignored)
 
