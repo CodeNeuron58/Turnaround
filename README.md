@@ -1,70 +1,93 @@
-# Turnaround
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.png">
+    <img src="docs/brand/logo-light.png" alt="Turnaround" width="380">
+  </picture>
+</p>
 
-[![CI](https://github.com/CodeNeuron58/Turnaround/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeNeuron58/Turnaround/actions/workflows/ci.yml)
-
-An open-source hiking companion. It predicts how long your hike will take, tells you when to turn around, and quietly alerts someone you trust if you don't check in.
-
-Built for the [Hacktoberfest Open-Source AI Challenge: Week 1](https://dev.to/challenges/hacktoberfest-week1-2026-10-05) on DEV — theme: **Touch Grass**.
-
-![Plan screen: turn-around time, back-by time, sunset margin, likely moving time and elevation](docs/screenshots/plan-desktop.png)
-
-## What it does
-
-- **Plan from what you know** — distance, elevation gain and the trailhead (a place search), the three things every trail page lists. Have a GPX file? Upload it instead for exact numbers and the elevation profile.
-- **Predict** — TabPFN, in context on 7,186 real hikes from hikr.org, estimates your moving time as a range. A personal pace factor — your finished hikes against the crowd's estimate for the same routes — tunes it to you from your first check-in. Your planned breaks are added on top.
-- **Turn around** — three moments per trip: *turn around by* (not at the top or the far end by then? head back), *back by* (the 90th percentile — 9 in 10 hikes like yours finish sooner), checked against sunset.
-- **Brief** — Gemma 4, running on your own machine, turns the numbers into a plain-language briefing, spoken aloud by Kokoro (an open 82M-parameter voice model, on your machine) and saved to your phone before you leave.
-- **Check in** — *Hike complete* or *I turned back early*. Both stop the safety timer; only completed hikes tune your pace factor, because a turned-back time says nothing fair about the whole route.
-- **Watch** — a Temporal safety timer waits for your check-in. If you're still out well past your back-by time (the 95th percentile + breaks + 30 min), it emails your contact the plan, the route, and a map link to where you set off — even if the server restarts mid-trip. Check in late and they get an all-clear.
+<h3 align="center">Know when to turn back.</h3>
 
 <p align="center">
-  <img src="docs/screenshots/nogpx-form-phone.png" width="240" alt="Plan from three numbers and a trailhead search — no GPX needed">
-  <img src="docs/screenshots/trail-phone.png" width="240" alt="On trail: countdown to turn-around, spoken briefing, armed safety timer">
-  <img src="docs/screenshots/summary-phone.png" width="240" alt="Summary: predicted vs actual, nobody alerted, pace factor">
+  An open-source hiking companion that predicts your time, sets your turn-around point,<br>
+  and quietly alerts someone you trust if you don't check in. It all runs on your own laptop.
 </p>
-<p align="center"><sub>Captured from the running app with the synthetic <a href="data/sample-route.gpx">sample route</a>. The trail and summary shots fast-forward the trip clock to show a mid-hike and a finish.</sub></p>
 
-<details>
-<summary>More screens — no signal on the trail, a timer that failed to arm, turning back</summary>
 <p align="center">
-  <img src="docs/screenshots/plan-phone.png" width="240" alt="The plan on a phone: turn-around time, back by, sunset margin">
-  <img src="docs/screenshots/checkin-offline-phone.png" width="240" alt="Check-in saved on the phone while offline">
-  <img src="docs/screenshots/timer-not-armed-phone.png" width="240" alt="Red banner: safety timer NOT armed, with a retry">
-  <img src="docs/screenshots/summary-turned-back-phone.png" width="240" alt="Turned back: good call, no pace-factor change">
-  <img src="docs/screenshots/trail-desktop.png" width="480" alt="On-trail screen on a laptop">
+  <a href="https://github.com/CodeNeuron58/Turnaround/actions/workflows/ci.yml"><img src="https://github.com/CodeNeuron58/Turnaround/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/license-MIT-1F4D35" alt="MIT license">
+  <img src="https://img.shields.io/badge/runs-100%25%20local-1F4D35" alt="Runs 100% locally">
+  <a href="https://dev.to/challenges/hacktoberfest-week1-2026-10-05"><img src="https://img.shields.io/badge/DEV-Hacktoberfest%202026-0A0A0A?logo=devdotto&logoColor=white" alt="DEV Hacktoberfest challenge"></a>
 </p>
-</details>
+
+<p align="center">
+  <a href="https://youtu.be/eOzc_RNBzMk"><img src="docs/screenshots/demo-thumbnail.jpg" alt="Watch the 30-second demo" width="720"></a><br>
+  <sub>▶ <a href="https://youtu.be/eOzc_RNBzMk">Watch the 30-second demo</a></sub>
+</p>
+
+## How it works
+
+<table>
+  <tr>
+    <td width="33%" valign="top"><img src="docs/screenshots/readme-plan.png" alt="Plan a hike from three numbers and a trailhead"></td>
+    <td width="33%" valign="top"><img src="docs/screenshots/readme-trail.png" alt="On the trail: countdown to the turn-around time"></td>
+    <td width="33%" valign="top"><img src="docs/screenshots/readme-checkin.png" alt="Checked in: predicted vs actual"></td>
+  </tr>
+  <tr>
+    <td valign="top"><b>1 · Plan</b><br>Distance, climb and trailhead. No GPX needed. Get a turn-around time checked against sunset.</td>
+    <td valign="top"><b>2 · Go</b><br>A spoken briefing, a countdown to turn around, and a safety timer quietly watching.</td>
+    <td valign="top"><b>3 · Check in</b><br><i>Hike complete</i> or <i>I turned back</i>. Miss it, and your contact gets an email with a map.</td>
+  </tr>
+</table>
+
+## Built with
+
+| Open-source piece | What it does |
+|---|---|
+| **TabPFN** | Predicts your moving time from 7,186 real hikes, then tunes it to your pace |
+| **Gemma 4** | Writes your trail briefing, locally through Ollama |
+| **Kokoro** | Reads it aloud, an open 82M-parameter voice running on ONNX |
+| **Temporal** | Runs the safety timer, which survives crashes and restarts |
+| **Open-Meteo · Brevo** | Sunset, rain and place search · the alert email |
 
 ## Results
 
-**Prediction** — 1,438 held-out hikr.org hikes the model never saw (trained on the other 5,748, seed 42). [Full table](prediction/results/eval_summary.md).
+| | Naismith's rule | TabPFN |
+|---|:---:|:---:|
+| Average error on 1,438 unseen hikes | 44.1 min | **34.8 min** |
+| Hikers back before the *back-by* time | — | **90.4%** <sub>(target 90%)</sub> |
 
-| | Naismith's rule | TabPFN v3.5 |
-|---|---|---|
-| Average error (MAE) | 44.1 min | **34.8 min** |
-| RMSE | 69.1 min | **54.5 min** |
-| Real times inside the predicted 90% band | — | **89.5%** |
-| Hikers back before P90 — the back-by time | — | **90.4%** |
+The safety timer is proven in five scenarios: on-time check-in, a mail outage, the worker killed mid-trip, a missed-check-in drill, and the Temporal server killed mid-trip. **[See the evidence →](docs/evidence/)**
 
-TabPFN v2, which the laptop serves by default because it's ~3x faster on CPU: MAE 35.5 · 87.9% · 89.7%.
-On top of either, one finished hike that was 40% slower than predicted moves your next estimate up 12% —
-shrunk on purpose while your history is thin ([the rules](prediction/rules.py), [their tests](prediction/tests/test_rules.py)).
+<details>
+<summary><b>Run it locally</b></summary>
 
-**Safety timer** — five scenarios, each with evidence in [`docs/evidence/`](docs/evidence/).
+<br>
 
-| # | Scenario | What happened | Evidence |
-|---|---|---|---|
-| 1 | Check in on time | the timer closes; nobody is emailed | [log](docs/evidence/test1_on_time.txt) |
-| 2 | Missed check-in while the mail server fails | retried; the alert went out on attempt 2 | [history](docs/evidence/test2_escalation_retry.json) · [email](docs/evidence/test2_alert_email.txt) |
-| 3 | The worker is killed mid-trip | restarted 25 s later; the alert still fired exactly on the deadline | [history](docs/evidence/test3_worker_restart.json) · [email](docs/evidence/test3_alert_email.txt) |
-| 4 | Drill: missed check-in, then a late check-in | alert on the deadline, then an all-clear to the contact | [history](docs/evidence/test4_drill_history.json) · [alert](docs/evidence/test4_drill_alert_email.txt) · [all-clear](docs/evidence/test4_drill_allclear_email.txt) |
-| 5 | The Temporal **server** is killed mid-trip | the timer survived on disk; a check-in sent during the outage said so honestly and landed when re-sent | [log](docs/evidence/test5_temporal_server_restart.txt) |
+Node 20+, Python 3.11, [Ollama](https://ollama.com) with `gemma4:e4b`, and the Kokoro + Temporal files from [tools/README.md](tools/README.md). Training data: [data/DATA_NOTES.md](data/DATA_NOTES.md).
 
-Scenarios 1–3 ran before the alert moved from P90 to P95 + breaks + grace, and before alerts carried a location; 4–5 use the current flow.
+```bash
+npm install
+python -m venv .venv && .venv\Scripts\pip install -r prediction\requirements.txt
+python prediction\build_dataset.py
+```
 
-## How it fits together
+One terminal each:
 
-Everything runs on one laptop. The only outside call is an anonymous weather lookup (coordinates only) — and the alert email itself.
+```bash
+tools\temporal\temporal.exe server start-dev --port 7233 --db-filename tools\temporal\turnaround.db
+.venv\Scripts\python.exe -m uvicorn prediction.service:app --port 8000
+npm run worker -w @turnaround/workflows
+npm run dev -w @turnaround/app        # → http://localhost:5173
+```
+
+Optional: real alert emails with a free [Brevo](https://www.brevo.com) key in `.env` (see `.env.example`). Your past hikes can seed your pace factor with `prediction\import_hikes.py`.
+
+</details>
+
+<details>
+<summary><b>How it fits together</b></summary>
+
+<br>
 
 ```mermaid
 flowchart LR
@@ -77,84 +100,48 @@ flowchart LR
     tmp <--> wk["Worker<br/>tripWorkflow"]
   end
   wk -->|"alert · all-clear"| mail["Email to your contact"]
-  app -.->|"sunset + rain, coordinates only"| om["Open-Meteo"]
+  app -.->|"sunset, rain, place search"| om["Open-Meteo"]
 ```
 
-## Components
-
-| Folder | Role | Stack |
-|---|---|---|
-| [`app/`](app/) | Plan / On-trail / Summary screens | React + Vite |
-| [`agent/`](agent/) | Trip-planning agent and briefing (CLI) | Plain TypeScript + Gemma 4 + Piper |
-| [`workflows/`](workflows/) | Safety timer, alert and all-clear emails | Temporal |
-| [`prediction/`](prediction/) | Hike-time prediction service, trip rules, trip storage | Python + TabPFN + SQLite |
-| [`data/`](data/) | Training data notes, sample routes | — |
-| [`tests/`](tests/) | End-to-end smoke test for a running stack | Python |
-| [`docs/`](docs/) | Design exports, safety-timer evidence, screenshots | — |
-
-## Run it
-
-Everything runs on one machine — no cloud account needed. First-time setup:
-
-1. Node 20+ and Python 3.11 · `npm install` at the repo root
-2. Python deps: `python -m venv .venv` then `.venv\Scripts\pip install -r prediction\requirements.txt`
-3. Gemma 4: install [Ollama](https://ollama.com), then `ollama pull gemma4:e4b`
-4. Piper + Temporal binaries: one-time fetch commands in [tools/README.md](tools/README.md)
-5. Training data: download the dataset per [data/DATA_NOTES.md](data/DATA_NOTES.md), then `python prediction/build_dataset.py`
-6. Optional: your own past hikes → `data/raw/gpx/`, then `.venv\Scripts\python.exe prediction\import_hikes.py --grade 3` (one run per grade) to seed your pace factor
-7. Alert emails: a free [Brevo](https://www.brevo.com) account — put `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in `.env` (see `.env.example`), then check with `npm run test-email -w @turnaround/workflows -- you@example.com`. Without it, alerts are only written to `workflows/outbox/`.
-
-Then one process per terminal:
-
-| Terminal | Command |
+| Folder | What's inside |
 |---|---|
-| Temporal server | `tools\temporal\temporal.exe server start-dev --port 7233 --db-filename tools\temporal\turnaround.db` |
-| Prediction service | `.venv\Scripts\python.exe -m uvicorn prediction.service:app --port 8000` |
-| Safety-timer worker | `npm run worker -w @turnaround/workflows` |
-| **The app (three screens)** | `npm run dev -w @turnaround/app` → open http://localhost:5173 |
+| [`app/`](app/) | The three screens: React + Vite |
+| [`prediction/`](prediction/) | TabPFN service, trip rules, trip storage |
+| [`workflows/`](workflows/) | The Temporal safety timer and the emails |
+| [`agent/`](agent/) | The same plan as a command-line agent |
+| [`docs/`](docs/) | Evidence, screenshots, design |
 
-`--db-filename` keeps running timers on disk, so they survive a restart of the Temporal server
-itself (a Windows Update reboot included), not just of the worker.
+</details>
 
-Plan a hike in the app — type the distance, elevation gain and trailhead, or upload a GPX
-([`data/sample-route.gpx`](data/sample-route.gpx) is a synthetic demo loop). Start arms the Temporal timer, the trail screen speaks the briefing, and
-"Hike complete" — or "I turned back early" — checks you in. The agent CLI (`npx tsx agent/src/cli.ts --gpx data/sample-route.gpx --grade 3`)
-runs the same plan from a terminal; curl recipes live in [workflows/README.md](workflows/README.md).
+<details>
+<summary><b>Taking it on the trail</b></summary>
 
-## Tests
+<br>
 
-| What | Command |
-|---|---|
-| Trip rules: pace factor, turn-around split, timeline (stdlib only) | `python -m unittest discover -s prediction/tests -t .` |
-| The agent's turn-around rule (node:test) | `npm test -w @turnaround/agent` |
-| End-to-end against a running stack — use a scratch `TURNAROUND_DB` | `.venv\Scripts\python.exe tests\smoke_stack.py [--briefing]` |
+- **Reach the laptop from your phone:** same Wi-Fi works out of the box. On mobile data, put both on a private network such as [Tailscale](https://tailscale.com). Don't use a public tunnel, because the app has no login.
+- **Keep the laptop awake and online:** it runs the timer and sends the email.
+- **Plan while you have signal:** the briefing and its audio are saved to your phone. With no signal, your check-in waits on the phone and sends when it can.
+- **Run a drill:** open `http://…:5173/?drill=120` and the alert fires 2 minutes after Start. Both emails are marked `[DRILL]`.
 
-CI runs the three typechecks, the app build and both unit suites on every push.
+</details>
 
-## Taking it on the trail
+<details>
+<summary><b>Tests</b></summary>
 
-The laptop is the server, so your phone has to reach it from the trail:
+<br>
 
-- **Same Wi-Fi** works out of the box (Vite prints a `Network:` URL).
-- **On mobile data**, put the laptop and phone on a private network — e.g.
-  [Tailscale](https://tailscale.com) on both, then open `http://<laptop's Tailscale IP or name>:5173`
-  on the phone. Nothing is exposed to the internet. Don't use a public tunnel: the app has no login.
-- **Keep the laptop awake and online** for the whole hike — it runs the timer and sends the email.
-  Plugged in: `powercfg /change standby-timeout-ac 0` (restore later with your usual value).
-- **Plan while you have signal.** The briefing and its audio are saved to the phone when you plan.
-  On the trail, keep the tab open: with no signal, your check-in is saved on the phone and sent the
-  moment it can reach the laptop. (A page *reload* needs signal — there's no offline web cache.)
+```bash
+python -m unittest discover -s prediction/tests -t .     # trip rules (stdlib only)
+npm test -w @turnaround/agent                            # the agent's turn-around rule
+.venv\Scripts\python.exe tests\smoke_stack.py --briefing # end to end, against a scratch database
+```
 
-**Missed-check-in drill:** open the app as `http://…:5173/?drill=120` — the contact is emailed
-120 s after Start (both emails are marked `[DRILL]`), and checking in afterwards sends the all-clear.
+CI runs the typechecks, the app build and both unit suites on every push.
 
-Starting fresh: stop everything, then delete `data/trips.db` **and** `tools/temporal/turnaround.db`
-together — trip ids restart at 1, and a leftover timer would carry an old trip's id.
+</details>
 
-## Why open source
+---
 
-It runs on your own machine — no server, no subscription — so your location data never leaves it, and every model in the stack is swappable.
-
-## License
-
-[MIT](LICENSE) · training data: hikr.org tracks via Kaggle, CC0 ([notes](data/DATA_NOTES.md))
+<p align="center">
+  <sub>MIT licensed · training data: hikr.org tracks via Kaggle (CC0) · built for the <a href="https://dev.to/challenges/hacktoberfest-week1-2026-10-05">DEV Hacktoberfest Open-Source AI Challenge</a></sub>
+</p>
