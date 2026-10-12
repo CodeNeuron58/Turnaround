@@ -39,6 +39,12 @@
   </tr>
 </table>
 
+## What your contact gets
+
+<p align="center">
+  <img src="docs/screenshots/emails.png" alt="If you don't check in, your contact gets the plan, the route and a map link. If you check in late, a second email says you're safe." width="560">
+</p>
+
 ## Built with
 
 | Open-source piece | What it does |
